@@ -25,9 +25,13 @@ function showAuthWall(){const el=document.getElementById('auth-overlay');if(el)e
 function hideAuthWall(){const el=document.getElementById('auth-overlay');if(el)el.hidden=true;}
 function renderAuthBar(){
   const bar=document.getElementById('auth-bar');if(!bar)return;
-  bar.innerHTML=currentUser
-    ?'<span class="auth-email" title="'+esc(currentUser.email)+'">'+esc(currentUser.email)+'</span><button class="auth-btn" data-logout>登出</button>'
-    :'<button class="auth-btn primary" data-login>登录 / 注册</button>';
+  if(currentUser){
+    const prefix=esc(currentUser.email.split('@')[0]||currentUser.email);
+    const avatar=esc(currentUser.email.slice(0,1).toUpperCase());
+    bar.innerHTML='<span class="auth-user"><span class="auth-avatar">'+avatar+'</span><span class="auth-email" title="'+esc(currentUser.email)+'">'+prefix+'</span></span><button class="auth-btn" data-logout>登出</button>';
+  }else{
+    bar.innerHTML='<button class="auth-btn primary" data-login>登录 / 注册</button>';
+  }
 }
 function openAuthDialog(mode){
   const f=document.getElementById('auth-form');
@@ -48,7 +52,7 @@ async function handleAuth(e){
   msg.textContent='处理中…';
   try{
     const res=f.dataset.mode==='signup'
-      ?await supabase.auth.signUp({email,password,options:{emailRedirectTo:location.origin}})
+      ?await supabase.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname.replace(/[^\/]*$/,'')}})
       :await supabase.auth.signInWithPassword({email,password});
     if(res.error)throw res.error;
     if(f.dataset.mode==='signup'&&!res.data.session){msg.textContent='注册成功，请到邮箱完成验证后再登录。';return;}
@@ -63,7 +67,7 @@ function buildAuthUI(){
       <div class="welcome-card">
         <div class="welcome-logo">藏 <span>ARCHIVE</span></div>
         <h1 class="welcome-headline">把热爱，<em>一一归档。</em></h1>
-        <p class="welcome-lead">为书籍、音乐与电影收藏而生。记录版本、来源、心情，以及每件藏品背后的故事。</p>
+        <p class="welcome-lead">为书籍、音乐与电影收藏而生。<br>记录版本、来源、心情，以及每件藏品背后的故事。</p>
         <div class="welcome-features">
           <div><strong>云端同步</strong><span>换设备也不丢</span></div>
           <div><strong>私密空间</strong><span>仅自己可见</span></div>
@@ -85,7 +89,12 @@ function buildAuthUI(){
         </div>
       </form>
     </dialog>`);
-  document.querySelector('.topbar')?.insertAdjacentHTML('beforeend','<div id="auth-bar"></div>');
+  const topbar=document.querySelector('.topbar');
+  const addBtn=topbar?.querySelector('.add-button');
+  if(topbar){
+    if(addBtn)addBtn.insertAdjacentHTML('beforebegin','<div id="auth-bar"></div>');
+    else topbar.insertAdjacentHTML('beforeend','<div id="auth-bar"></div>');
+  }
   document.getElementById('auth-bar').addEventListener('click',async e=>{
     if(e.target.closest('[data-login]'))openAuthDialog('login');
     if(e.target.closest('[data-logout]')){await logout();}

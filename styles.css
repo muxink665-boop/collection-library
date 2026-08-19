@@ -196,26 +196,48 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   .auth-body { padding: 10px 22px 28px; }
 }
 
-/* 首页三栏看板布局 */
+/* 首页 Hero：标题在上，统计条在下 */
 .hero-dashboard {
-  display: grid;
-  grid-template-columns: 150px 1fr 270px;
-  gap: clamp(28px, 4vw, 60px);
-  align-items: start;
-}
-.hero-note-left {
-  order: -1;
-  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
 }
 .hero-main {
-  max-width: 560px;
+  max-width: 720px;
 }
 .hero-main .intro {
   margin: 28px 0 34px;
 }
+.hero-stats-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 40px;
+  border-top: 1px solid var(--line);
+  padding-top: 34px;
+}
+.hero-note-left {
+  width: 195px;
+  flex-shrink: 0;
+}
+.hero-note-left p {
+  font-size: 11px; color: #777; margin: 0 0 22px;
+}
+.hero-note-left strong {
+  display: block;
+  font: 500 66px/.8 "Playfair Display", serif;
+}
+.hero-note-left span {
+  display: block;
+  margin-top: 12px;
+  color: #777;
+  font-size: 11px;
+}
 .hero-summary {
-  justify-self: end;
-  margin-top: 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 .hero-summary > p {
   margin: 0 0 14px;
@@ -241,34 +263,14 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   font-size: 11px;
 }
 @media (max-width: 980px) {
-  .hero-dashboard {
-    grid-template-columns: 1fr;
-    gap: 38px;
+  .hero-dashboard { gap: 38px; }
+  .hero-stats-bar {
+    flex-direction: column;
+    gap: 30px;
   }
-  .hero-note-left, .hero-summary {
-    order: 0;
-    justify-self: start;
-  }
-  .hero-note-left {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    width: auto;
-    border-top: 0;
-    padding-top: 0;
-  }
-  .hero-note-left p, .hero-note-left span {
-    margin: 0;
-  }
-  .hero-note-left strong {
-    font-size: 32px;
-  }
-  .hero-summary {
-    width: 100%;
-  }
-  .hero-summary .summary-grid {
-    max-width: 420px;
-  }
+  .hero-summary { align-items: flex-start; }
+  .hero-summary .summary-grid { max-width: 420px; }
+  .hero-note-left strong { font-size: 54px; }
 }
 @media (max-width: 520px) {
   .hero-summary .summary-grid { grid-template-columns: 1fr; }

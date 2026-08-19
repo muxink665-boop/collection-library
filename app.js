@@ -32,8 +32,9 @@ function renderAuthBar(){
 function openAuthDialog(mode){
   const f=document.getElementById('auth-form');
   f.dataset.mode=mode;
-  document.querySelector('#auth-title').textContent=mode==='signup'?'注册新账户':'登录';
-  document.querySelector('#auth-toggle').textContent=mode==='signup'?'已有账户？登录':'没有账户？注册';
+  document.querySelector('#auth-title').textContent=mode==='signup'?'注册新账户':'欢迎回来';
+  document.querySelector('#auth-toggle-text').textContent=mode==='signup'?'已有账户？':'没有账户？';
+  document.querySelector('#auth-toggle').textContent=mode==='signup'?'登录':'注册';
   f.querySelector('button[type=submit]').textContent=mode==='signup'?'注册':'登录';
   document.querySelector('#auth-msg').textContent='';
   document.getElementById('auth-dialog').showModal();
@@ -47,7 +48,7 @@ async function handleAuth(e){
   msg.textContent='处理中…';
   try{
     const res=f.dataset.mode==='signup'
-      ?await supabase.auth.signUp({email,password})
+      ?await supabase.auth.signUp({email,password,options:{emailRedirectTo:location.origin}})
       :await supabase.auth.signInWithPassword({email,password});
     if(res.error)throw res.error;
     if(f.dataset.mode==='signup'&&!res.data.session){msg.textContent='注册成功，请到邮箱完成验证后再登录。';return;}
@@ -58,37 +59,30 @@ async function handleAuth(e){
 async function logout(){await supabase.auth.signOut();}
 function buildAuthUI(){
   document.body.insertAdjacentHTML('beforeend',`
-    <style>
-      #auth-overlay{position:fixed;inset:0;background:rgba(245,243,238,.97);display:flex;align-items:center;justify-content:center;z-index:1000}
-      #auth-overlay[hidden]{display:none}
-      .auth-card{text-align:center;max-width:360px;padding:40px}
-      .auth-card h1{font-size:28px;margin-bottom:8px}
-      .auth-card p{color:#777;margin-bottom:24px}
-      #auth-bar{position:fixed;top:16px;right:16px;z-index:900;display:flex;gap:8px;align-items:center}
-      .auth-email{font-size:13px;color:#555}
-      .auth-btn{cursor:pointer;border:1px solid #ddd;background:#fff;padding:8px 14px;border-radius:8px;font-size:13px}
-      .auth-btn.primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
-      .auth-msg{color:#c0392b;font-size:13px;min-height:18px;margin:6px 0}
-      #auth-dialog label{display:block;margin:10px 0}
-      #auth-dialog input{width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:4px}
-    </style>
     <div id="auth-overlay" hidden>
-      <div class="auth-card">
-        <h1>我的收藏馆</h1>
-        <p>请登录以查看你的私人藏品。</p>
-        <button class="auth-btn primary" data-login>登录 / 注册</button>
+      <div class="welcome-card">
+        <div class="welcome-logo">藏 <span>ARCHIVE</span></div>
+        <h1 class="welcome-headline">把热爱，<em>一一归档。</em></h1>
+        <p class="welcome-lead">为书籍、音乐与电影收藏而生。记录版本、来源、心情，以及每件藏品背后的故事。</p>
+        <div class="welcome-features">
+          <div><strong>云端同步</strong><span>换设备也不丢</span></div>
+          <div><strong>私密空间</strong><span>仅自己可见</span></div>
+          <div><strong>永久存档</strong><span>为热爱留底</span></div>
+        </div>
+        <button class="welcome-cta primary" data-login>登录 / 注册</button>
+        <p class="welcome-hint">无需付费 · 邮箱一键开始</p>
       </div>
     </div>
     <div id="auth-bar"></div>
     <dialog id="auth-dialog">
       <form id="auth-form" data-mode="login" novalidate>
-        <div class="dialog-head"><div><p class="eyebrow">ACCOUNT</p><h2 id="auth-title">登录</h2></div><button type="button" class="close" data-auth-close>×</button></div>
-        <label>邮箱<input name="authEmail" type="email" required placeholder="you@example.com"></label>
-        <label>密码<input name="authPassword" type="password" required minlength="6" placeholder="至少 6 位"></label>
-        <p id="auth-msg" class="auth-msg"></p>
-        <div class="dialog-actions">
-          <button type="button" class="secondary" id="auth-toggle">没有账户？注册</button>
-          <button class="primary" type="submit">登录</button>
+        <div class="dialog-head"><div><p class="eyebrow">ACCOUNT</p><h2 id="auth-title">欢迎回来</h2></div><button type="button" class="close" data-auth-close>×</button></div>
+        <div class="auth-body">
+          <label>邮箱<input name="authEmail" type="email" required placeholder="you@example.com"></label>
+          <label>密码<input name="authPassword" type="password" required minlength="6" placeholder="至少 6 位"></label>
+          <p id="auth-msg" class="auth-msg"></p>
+          <button class="primary auth-submit" type="submit">登录</button>
+          <p class="auth-toggle-line"><span id="auth-toggle-text">没有账户？</span><button type="button" class="text-btn" id="auth-toggle">注册</button></p>
         </div>
       </form>
     </dialog>`);
@@ -110,6 +104,7 @@ function buildAuthUI(){
 async function initAuth(){
   const {data}=await supabase.auth.getSession();
   currentUser=data.session?.user||null;
+  if(/[?&#](code=|access_token=|token=)/.test(location.search+location.hash))history.replaceState(null,'',location.pathname);
   renderAuthBar();
   if(currentUser){hideAuthWall();try{await supabase.rpc('claim_orphans');}catch(e){}}
   else showAuthWall();

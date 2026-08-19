@@ -196,107 +196,89 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   .auth-body { padding: 10px 22px 28px; }
 }
 
-/* 首页三栏看板布局：左侧 overview 三计数，右侧我的收藏 */
+/* 首页 Hero：标题在上，四个计数横向排列在下 */
 .hero-dashboard {
-  display: grid;
-  grid-template-columns: 195px 1fr 195px;
-  gap: clamp(28px, 4vw, 60px);
-  align-items: start;
-}
-.hero-note-left.hero-note-plain {
-  border-top: 0;
-  padding-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
 }
 .hero-main {
-  max-width: 560px;
+  max-width: 720px;
 }
 .hero-main .intro {
   margin: 28px 0 34px;
 }
-.hero-summary {
-  justify-self: start;
-  width: 195px;
-  margin-top: 8px;
+.hero-stats-row {
+  border-top: 1px solid var(--line);
+  padding-top: 34px;
 }
-.hero-summary > p {
-  margin: 0 0 22px;
+.stats-heading {
+  margin: 0 0 28px;
   color: #777;
   letter-spacing: 1.5px;
   font-size: 10px;
   font-weight: 600;
 }
-.hero-summary .summary-grid {
-  display: flex;
-  flex-direction: column;
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 0;
 }
-.hero-summary .summary-item {
+.stats-grid .hero-note-plain,
+.stats-grid .summary-item {
+  padding: 0 24px;
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  padding: 18px 0;
-  border-left: 0;
-  border-top: 1px solid var(--line);
   text-decoration: none;
   color: inherit;
 }
-.hero-summary .summary-item:first-child {
-  padding-top: 0;
+.stats-grid .hero-note-plain {
+  width: auto;
+  margin-top: 0;
   border-top: 0;
+  padding-top: 0;
 }
-.hero-summary .summary-label {
+.stats-grid > *:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.stats-grid .hero-summary,
+.stats-grid .summary-grid {
+  display: contents;
+}
+.stats-grid .hero-note-plain p,
+.stats-grid .summary-label {
   order: -1;
   font-size: 11px;
   color: #777;
   margin: 0 0 14px;
+  letter-spacing: .4px;
 }
-.hero-summary .summary-label i { display: none; }
-.hero-summary .summary-count {
+.stats-grid .summary-label i { display: none; }
+.stats-grid .hero-note-plain strong,
+.stats-grid .summary-count {
   font: 500 66px/.8 "Playfair Display", serif;
 }
-@media (max-width: 980px) {
-  .hero-dashboard {
-    grid-template-columns: 1fr;
-    gap: 38px;
-  }
-  .hero-note-left, .hero-summary {
-    order: 0;
-    justify-self: start;
-    width: auto;
-  }
-  .hero-note-left {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    border-top: 0;
-    padding-top: 0;
-  }
-  .hero-note-left p, .hero-note-left span {
-    margin: 0;
-  }
-  .hero-note-left strong {
-    font-size: 32px;
-  }
-  .hero-summary .summary-grid {
-    flex-direction: row;
-    max-width: 420px;
-  }
-  .hero-summary .summary-item {
-    padding: 0 16px;
-    border-top: 0;
-    border-left: 1px solid var(--line);
-  }
-  .hero-summary .summary-item:first-child {
-    padding-left: 0;
-    border-left: 0;
-  }
-  .hero-summary .summary-count {
-    font-size: 32px;
-  }
+.stats-grid .hero-note-plain span { display: none; }
+@media (max-width: 860px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); row-gap: 28px; }
+  .stats-grid .hero-note-plain,
+  .stats-grid .summary-item { padding: 0 18px; }
+  .stats-grid .hero-note-plain strong,
+  .stats-grid .summary-count { font-size: 42px; }
 }
 @media (max-width: 520px) {
-  .hero-summary .summary-grid { flex-direction: column; }
-  .hero-summary .summary-item { border-left: 0; border-top: 1px solid var(--line); padding: 14px 0; }
-  .hero-summary .summary-item:first-child { border-top: 0; padding-left: 0; }
+  .stats-grid { grid-template-columns: 1fr; row-gap: 18px; }
+  .stats-grid .hero-note-plain,
+  .stats-grid .summary-item {
+    padding: 14px 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .stats-grid > *:first-child { border-top: 0; padding-top: 0; }
+  .stats-grid .hero-note-plain strong,
+  .stats-grid .summary-count { font-size: 34px; }
 }
 
 /* 详情页信息区：重点突出、左右均衡 */
@@ -343,6 +325,13 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   justify-content: center;
   background: var(--ink);
   color: #f5f3ee;
+}
+.bento-feature .bento-tag {
+  color: rgba(245,243,238,.55);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  font-weight: 500;
+  margin-bottom: 6px;
 }
 .bento-feature .bento-label { color: rgba(245,243,238,.55); }
 .bento-feature .bento-value {

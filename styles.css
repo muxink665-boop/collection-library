@@ -8,7 +8,7 @@ nav { display:flex; gap:32px; margin-left:auto; margin-right:20px; } nav a { col
 .topbar-left { display:flex; align-items:center; gap:28px; }
 .topbar-back { color:#555; text-decoration:none; font-size:12px; border-left:1px solid var(--line); padding-left:22px; transition:color .15s; } .topbar-back:hover { color:var(--ink); }
 button { font:inherit; cursor:pointer; }.add-button,.primary { border:1px solid var(--ink); background:var(--ink); color:white; padding:10px 15px; font-size:12px; }.add-button:hover,.primary:hover { background:#444; }
-main { max-width:1240px; margin:auto; padding:0 clamp(24px,6vw,92px); }.hero { min-height:500px; padding:86px 0 64px; display:flex; align-items:flex-start; justify-content:space-between; border-bottom:1px solid var(--line); }
+main { max-width:1240px; margin:auto; padding:0 clamp(24px,6vw,92px); }.hero { min-height:500px; padding:86px 0 64px; display:flex; align-items:flex-start; justify-content:space-between; }
 .eyebrow { margin:0 0 16px; color:#777; font-size:10px; letter-spacing:1.7px; font-weight:600; }.hero h1,.section-heading h2,.record-guide h2,.dialog-head h2 { margin:0; font:500 clamp(48px,6vw,78px)/1.1 "Playfair Display", "Noto Sans SC", serif; letter-spacing:-2.5px; }.hero h1 em { font-style:italic; font-weight:500; }.intro { max-width:370px; color:#666; line-height:1.9; margin:25px 0 30px; }.text-link { color:var(--ink); text-decoration:none; font-weight:600; font-size:12px; border-bottom:1px solid var(--ink); padding-bottom:5px; }.text-link span { margin-left:14px; }
 .hero-note { width:195px; margin-top:38px; border-top:1px solid var(--ink); padding-top:14px; }.hero-note p { font-size:11px; color:#777; margin:0 0 22px; }.hero-note strong { display:block; font:500 66px/.8 "Playfair Display",serif; }.hero-note span { display:block; margin-top:12px; color:#777; font-size:11px; }
 .summary { padding:36px 0 55px; border-bottom:1px solid var(--line); }.summary>p { color:#777; letter-spacing:1.5px; font-size:10px; font-weight:600; }.summary-grid { display:grid; grid-template-columns:repeat(4,1fr); }.summary-item { border-left:1px solid var(--line); padding:0 24px; }.summary-item:first-child { border-left:0; padding-left:0; }.summary-count { display:block; font:500 37px "Playfair Display",serif; }.summary-label { color:#777; font-size:12px; }
@@ -201,6 +201,7 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   display: flex;
   flex-direction: column;
   gap: 48px;
+  width: 100%;
 }
 .hero-main {
   max-width: 720px;
@@ -209,8 +210,10 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   margin: 28px 0 34px;
 }
 .hero-stats-row {
+  width: 100%;
   border-top: 1px solid var(--line);
-  padding-top: 34px;
+  border-bottom: 1px solid var(--line);
+  padding: 34px 0 40px;
 }
 .stats-heading {
   margin: 0 0 28px;
@@ -221,8 +224,9 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
 }
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
+  width: 100%;
 }
 .stats-grid .hero-note-plain,
 .stats-grid .summary-item {
@@ -230,8 +234,10 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   text-decoration: none;
   color: inherit;
+  min-width: 0;
 }
 .stats-grid .hero-note-plain {
   width: auto;
@@ -254,15 +260,17 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   color: #777;
   margin: 0 0 14px;
   letter-spacing: .4px;
+  font-weight: 500;
 }
 .stats-grid .summary-label i { display: none; }
 .stats-grid .hero-note-plain strong,
 .stats-grid .summary-count {
   font: 500 66px/.8 "Playfair Display", serif;
+  display: block;
 }
 .stats-grid .hero-note-plain span { display: none; }
 @media (max-width: 860px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); row-gap: 28px; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 28px; }
   .stats-grid .hero-note-plain,
   .stats-grid .summary-item { padding: 0 18px; }
   .stats-grid .hero-note-plain strong,

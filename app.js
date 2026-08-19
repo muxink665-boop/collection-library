@@ -26,7 +26,7 @@ function hideAuthWall(){const el=document.getElementById('auth-overlay');if(el)e
 function renderAuthBar(){
   const bar=document.getElementById('auth-bar');if(!bar)return;
   bar.innerHTML=currentUser
-    ?'<span class="auth-email">'+esc(currentUser.email)+'</span><button class="auth-btn" data-logout>登出</button>'
+    ?'<span class="auth-email" title="'+esc(currentUser.email)+'">'+esc(currentUser.email)+'</span><button class="auth-btn" data-logout>登出</button>'
     :'<button class="auth-btn primary" data-login>登录 / 注册</button>';
 }
 function openAuthDialog(mode){
@@ -73,7 +73,6 @@ function buildAuthUI(){
         <p class="welcome-hint">无需付费 · 邮箱一键开始</p>
       </div>
     </div>
-    <div id="auth-bar"></div>
     <dialog id="auth-dialog">
       <form id="auth-form" data-mode="login" novalidate>
         <div class="dialog-head"><div><p class="eyebrow">ACCOUNT</p><h2 id="auth-title">欢迎回来</h2></div><button type="button" class="close" data-auth-close>×</button></div>
@@ -86,6 +85,7 @@ function buildAuthUI(){
         </div>
       </form>
     </dialog>`);
+  document.querySelector('.topbar')?.insertAdjacentHTML('beforeend','<div id="auth-bar"></div>');
   document.getElementById('auth-bar').addEventListener('click',async e=>{
     if(e.target.closest('[data-login]'))openAuthDialog('login');
     if(e.target.closest('[data-logout]')){await logout();}

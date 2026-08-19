@@ -26,9 +26,12 @@ function hideAuthWall(){const el=document.getElementById('auth-overlay');if(el)e
 function renderAuthBar(){
   const bar=document.getElementById('auth-bar');if(!bar)return;
   if(currentUser){
-    const prefix=esc(currentUser.email.split('@')[0]||currentUser.email);
-    const avatar=esc(currentUser.email.slice(0,1).toUpperCase());
-    bar.innerHTML='<span class="auth-user"><span class="auth-avatar">'+avatar+'</span><span class="auth-email" title="'+esc(currentUser.email)+'">'+prefix+'</span></span><button class="auth-btn" data-logout>登出</button>';
+    const meta=currentUser.user_metadata||{};
+    const name=esc(meta.username||currentUser.email.split('@')[0]||currentUser.email);
+    const avatar=meta.avatar_url
+      ?'<img src="'+esc(meta.avatar_url)+'" alt="">'
+      :esc((meta.username||currentUser.email).slice(0,1).toUpperCase());
+    bar.innerHTML='<span class="auth-user"><span class="auth-avatar">'+avatar+'</span><span class="auth-user-name" title="'+esc(currentUser.email)+'">'+name+'</span></span><button class="auth-btn" data-logout>登出</button>';
   }else{
     bar.innerHTML='<button class="auth-btn primary" data-login>登录 / 注册</button>';
   }
@@ -41,6 +44,7 @@ function openAuthDialog(mode){
   document.querySelector('#auth-toggle').textContent=mode==='signup'?'登录':'注册';
   f.querySelector('button[type=submit]').textContent=mode==='signup'?'注册':'登录';
   document.querySelector('#auth-msg').textContent='';
+  document.querySelectorAll('.signup-only').forEach(el=>el.classList.toggle('hidden',mode!=='signup'));
   document.getElementById('auth-dialog').showModal();
 }
 async function handleAuth(e){
@@ -48,14 +52,25 @@ async function handleAuth(e){
   const f=e.currentTarget;
   const email=f.authEmail.value.trim();
   const password=f.authPassword.value;
+  const username=f.authUsername?.value.trim()||'';
+  const avatarFile=f.authAvatar?.files[0]||null;
   const msg=document.querySelector('#auth-msg');
   msg.textContent='处理中…';
   try{
+    let avatar_url='';
+    if(avatarFile)avatar_url=await shrinkAvatar(avatarFile);
+    const userData={username,avatar_url};
     const res=f.dataset.mode==='signup'
-      ?await supabase.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname.replace(/[^\/]*$/,'')}})
+      ?await supabase.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname.replace(/[^\/]*$/,''),data:userData}})
       :await supabase.auth.signInWithPassword({email,password});
     if(res.error)throw res.error;
-    if(f.dataset.mode==='signup'&&!res.data.session){msg.textContent='注册成功，请到邮箱完成验证后再登录。';return;}
+    if(f.dataset.mode==='signup'){
+      if(!res.data.session){msg.textContent='注册成功，请验证邮箱后登录。';return;}
+      if(username||avatar_url){
+        const {error:updErr}=await supabase.auth.updateUser({data:userData});
+        if(updErr)console.warn('更新用户资料失败',updErr);
+      }
+    }
     msg.textContent='';
     document.getElementById('auth-dialog').close();
   }catch(err){msg.textContent='出错：'+err.message;}
@@ -83,6 +98,11 @@ function buildAuthUI(){
         <div class="auth-body">
           <label>邮箱<input name="authEmail" type="email" required placeholder="you@example.com"></label>
           <label>密码<input name="authPassword" type="password" required minlength="6" placeholder="至少 6 位"></label>
+          <label class="signup-only hidden">用户名<input name="authUsername" type="text" placeholder="怎么称呼你（选填）"></label>
+          <label class="signup-only hidden auth-avatar-row">头像<span>选择一张小图作为头像</span>
+            <input name="authAvatar" type="file" accept="image/jpeg,image/png,image/webp">
+            <span class="auth-avatar-preview">上传后预览</span>
+          </label>
           <p id="auth-msg" class="auth-msg"></p>
           <button class="primary auth-submit" type="submit">登录</button>
           <p class="auth-toggle-line"><span id="auth-toggle-text">没有账户？</span><button type="button" class="text-btn" id="auth-toggle">注册</button></p>
@@ -109,6 +129,16 @@ function buildAuthUI(){
     openAuthDialog(document.getElementById('auth-form').dataset.mode!=='signup'?'signup':'login');
   });
   document.getElementById('auth-form').addEventListener('submit',handleAuth);
+  const avatarInput=document.querySelector('[name="authAvatar"]');
+  const avatarPreview=document.querySelector('.auth-avatar-preview');
+  if(avatarInput&&avatarPreview){
+    avatarInput.addEventListener('change',()=>{
+      const file=avatarInput.files[0];
+      if(!file){avatarPreview.innerHTML='';avatarPreview.textContent='上传后预览';return;}
+      const url=URL.createObjectURL(file);
+      avatarPreview.innerHTML='<img src="'+url+'" alt="头像预览">';
+    });
+  }
 }
 async function initAuth(){
   const {data}=await supabase.auth.getSession();
@@ -162,6 +192,7 @@ function renderDetail(){const entry=entries.find(e=>e.id===new URLSearchParams(l
 function renderTrash(){const grid=document.querySelector('#trash-grid');let toolbar=document.querySelector('#trash-toolbar');if(!toolbar){grid.insertAdjacentHTML('beforebegin','<div id="trash-toolbar" class="trash-toolbar"></div>');toolbar=document.querySelector('#trash-toolbar')}const selectedCount=selectedTrash.size;toolbar.innerHTML=trash.length?`<label class="select-all"><input type="checkbox" data-select-all ${selectedCount===trash.length?'checked':''}> 全选</label><span>已选择 ${selectedCount} 项</span><button class="danger" data-permanent-selected ${selectedCount?'':'disabled'}>永久删除所选</button>`:'';grid.innerHTML=trash.map(entry=>{const c=categories[entry.category],days=Math.max(0,Math.ceil((thirtyDays-(Date.now()-entry.deletedAt))/86400000));return `<article class="trash-card text-card"><div class="trash-check"><input type="checkbox" data-trash-check="${entry.id}" ${selectedTrash.has(entry.id)?'checked':''}></div><div class="card-top"><span class="card-mark ${c.className}">${c.icon}</span><span class="card-type">${c.label}</span></div><h3>${esc(entry.title)}</h3><p class="card-meta">${days} 天后自动永久删除</p><div class="trash-actions"><button class="secondary" data-restore="${entry.id}">恢复</button><button class="danger" data-permanent="${entry.id}">永久删除</button></div></article>`}).join('')||'<p class="empty">回收站为空。</p>'}
 function buildDialogs(){document.body.insertAdjacentHTML('beforeend',`<dialog id="type-dialog"><div class="dialog-head"><div><p class="eyebrow">NEW ENTRY</p><h2>选择收藏类别</h2></div><button class="close" data-close-type>×</button></div><div class="type-options">${Object.entries(categories).map(([id,c])=>`<button data-pick="${id}"><span class="type-icon ${c.className}">${c.icon}</span><b>${c.label}</b><small>${c.description}</small><i>→</i></button>`).join('')}</div></dialog><dialog id="entry-dialog"><form id="entry-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW ENTRY</p><h2 id="form-title">新增藏品</h2></div><button type="button" class="close" data-dismiss>×</button></div><div class="form-grid" id="form-fields"></div><div class="dialog-actions"><button type="button" class="secondary" data-dismiss>取消</button><button class="primary" type="submit">保存记录</button></div></form></dialog><dialog id="confirm-dialog"><div class="confirm"><p class="eyebrow">UNSAVED CHANGES</p><h2>要保留填写内容吗？</h2><p>你已经填写了部分内容。保留后可继续编辑；不保留则会清空本次填写。</p><div class="dialog-actions"><button class="secondary" data-discard>不保留</button><button class="primary" data-keep>继续填写</button></div></div></dialog><dialog id="delete-dialog"><div class="confirm"><p class="eyebrow">MOVE TO RECYCLE BIN</p><h2 id="delete-title">移入回收站？</h2><p id="delete-message">此收藏会在回收站保留 30 天，期间可随时恢复。</p><div class="dialog-actions"><button class="secondary" data-close-delete>取消</button><button class="danger" data-confirm-delete>确认移入</button></div></div></dialog>`)}
 async function shrinkImage(file){const url=URL.createObjectURL(file),img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url});const max=1200,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);URL.revokeObjectURL(url);return canvas.toDataURL('image/jpeg',.84)}
+async function shrinkAvatar(file){const url=URL.createObjectURL(file),img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url});const max=128,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);URL.revokeObjectURL(url);return canvas.toDataURL('image/jpeg',.72)}
 function openForm(category,entry=null){activeCategory=category;editingId=entry?.id||null;const c=current(),select=(name,label,items)=>`<label>${label}<select name="${name}"><option value="">请选择</option>${items.map(v=>`<option>${v}</option>`).join('')}</select></label>`;let fields=`<label class="wide cover-upload">封面图片 <span>支持 JPG、PNG、WebP；将自动压缩并以固定比例展示</span><input name="coverFile" type="file" accept="image/jpeg,image/png,image/webp"><input name="cover" type="hidden"><div class="cover-preview">${entry?.cover?`<img src="${entry.cover}" alt="当前封面">`:'上传后在此预览'}</div></label><label>名称 / 标题<input name="title" placeholder="${category==='books'?'例如：海边的卡夫卡':category==='music'?'例如：In Rainbows':'例如：花样年华'}" required></label><label>创作者<input name="creator" placeholder="${category==='books'?'作者':'导演、艺人'}"></label>${select('genre',category==='books'?'书籍类型':category==='music'?'音乐类型':'电影类型',c.genres)}`;if(category==='music')fields+=select('format','收藏介质',['CD','黑胶']);if(category==='movies')fields+=select('itemType','收藏品类型',['海报','明信片','票根','剧照','节目册','徽章','模型','其他']);fields+=`<label>年份<input name="year" type="number" min="1800" max="2100" placeholder="出版 / 发行 / 上映年份"></label><label>购入渠道<input name="source" placeholder="书店、唱片行、二手平台…"></label><label>保存状态<select name="condition"><option>全新</option><option>近全新</option><option>良好</option><option>有使用痕迹</option></select></label><label class="wide">备注<textarea name="note" rows="3" placeholder="版本、签名、购入日期，或你想记住的故事…"></textarea></label>`;document.querySelector('#form-title').textContent=`${entry?'编辑':'新增'}${c.label}收藏`;document.querySelector('#form-fields').innerHTML=fields;if(entry)Object.entries(entry).forEach(([key,value])=>{const input=document.querySelector(`[name="${key}"]`);if(input&&key!=='coverFile')input.value=value||''});const picker=document.querySelector('[name="coverFile"]');picker.addEventListener('click',()=>{choosingCover=true});picker.addEventListener('change',async event=>{choosingCover=false;const file=event.target.files[0];if(!file)return;const preview=document.querySelector('.cover-preview');preview.textContent='正在处理封面…';try{const cover=await shrinkImage(file);document.querySelector('[name="cover"]').value=cover;preview.innerHTML=`<img src="${cover}" alt="封面预览">`}catch{preview.textContent='图片处理失败，请选择其他图片。'}});document.querySelector('#entry-dialog').showModal()}
 const originalOpenForm=openForm;openForm=function(category,entry=null){originalOpenForm(category,entry);const preview=document.querySelector('.cover-preview'),hidden=document.querySelector('[name="cover"]'),picker=document.querySelector('[name="coverFile"]');preview.insertAdjacentHTML('afterend',`<button type="button" class="remove-cover" ${entry?.cover?'':'hidden'}>移除封面</button>`);const remove=document.querySelector('.remove-cover');picker.addEventListener('change',()=>{if(picker.files[0])remove.hidden=false});remove.addEventListener('click',()=>{hidden.value='';picker.value='';preview.textContent='上传后在此预览';remove.hidden=true})}
 function dirty(){return[...document.querySelector('#entry-form').elements].some(el=>el.name&&el.value&&!(el.name==='condition'&&el.value==='全新'))}function dismiss(){if(!dirty())return closeEntry(true);document.querySelector('#confirm-dialog').showModal()}function closeEntry(reset){document.querySelector('#confirm-dialog').close();document.querySelector('#entry-dialog').close();if(reset)document.querySelector('#entry-form').reset()}

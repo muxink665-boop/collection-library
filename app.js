@@ -12,10 +12,122 @@ let trash=[];
 const thirtyDays=30*24*60*60*1000;
 let activeCategory=new URLSearchParams(location.search).get('type');let editingId=null;let pendingDelete=null;let choosingCover=false;let selectedTrash=new Set();if(!categories[activeCategory])activeCategory=null;const esc=v=>String(v||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));const current=()=>categories[activeCategory];
 
+// ===== 用户认证：邮箱 + 密码登录，多用户数据隔离 =====
+let currentUser=null;
+function renderCurrent(){
+  const page=document.body.dataset.page;
+  if(page==='home')renderHome();
+  else if(page==='category')renderCategory();
+  else if(page==='trash')renderTrash();
+  else renderDetail();
+}
+function showAuthWall(){const el=document.getElementById('auth-overlay');if(el)el.hidden=false;}
+function hideAuthWall(){const el=document.getElementById('auth-overlay');if(el)el.hidden=true;}
+function renderAuthBar(){
+  const bar=document.getElementById('auth-bar');if(!bar)return;
+  bar.innerHTML=currentUser
+    ?'<span class="auth-email">'+esc(currentUser.email)+'</span><button class="auth-btn" data-logout>登出</button>'
+    :'<button class="auth-btn primary" data-login>登录 / 注册</button>';
+}
+function openAuthDialog(mode){
+  const f=document.getElementById('auth-form');
+  f.dataset.mode=mode;
+  document.querySelector('#auth-title').textContent=mode==='signup'?'注册新账户':'登录';
+  document.querySelector('#auth-toggle').textContent=mode==='signup'?'已有账户？登录':'没有账户？注册';
+  f.querySelector('button[type=submit]').textContent=mode==='signup'?'注册':'登录';
+  document.querySelector('#auth-msg').textContent='';
+  document.getElementById('auth-dialog').showModal();
+}
+async function handleAuth(e){
+  e.preventDefault();
+  const f=e.currentTarget;
+  const email=f.authEmail.value.trim();
+  const password=f.authPassword.value;
+  const msg=document.querySelector('#auth-msg');
+  msg.textContent='处理中…';
+  try{
+    const res=f.dataset.mode==='signup'
+      ?await supabase.auth.signUp({email,password})
+      :await supabase.auth.signInWithPassword({email,password});
+    if(res.error)throw res.error;
+    if(f.dataset.mode==='signup'&&!res.data.session){msg.textContent='注册成功，请到邮箱完成验证后再登录。';return;}
+    msg.textContent='';
+    document.getElementById('auth-dialog').close();
+  }catch(err){msg.textContent='出错：'+err.message;}
+}
+async function logout(){await supabase.auth.signOut();}
+function buildAuthUI(){
+  document.body.insertAdjacentHTML('beforeend',`
+    <style>
+      #auth-overlay{position:fixed;inset:0;background:rgba(245,243,238,.97);display:flex;align-items:center;justify-content:center;z-index:1000}
+      #auth-overlay[hidden]{display:none}
+      .auth-card{text-align:center;max-width:360px;padding:40px}
+      .auth-card h1{font-size:28px;margin-bottom:8px}
+      .auth-card p{color:#777;margin-bottom:24px}
+      #auth-bar{position:fixed;top:16px;right:16px;z-index:900;display:flex;gap:8px;align-items:center}
+      .auth-email{font-size:13px;color:#555}
+      .auth-btn{cursor:pointer;border:1px solid #ddd;background:#fff;padding:8px 14px;border-radius:8px;font-size:13px}
+      .auth-btn.primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+      .auth-msg{color:#c0392b;font-size:13px;min-height:18px;margin:6px 0}
+      #auth-dialog label{display:block;margin:10px 0}
+      #auth-dialog input{width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:4px}
+    </style>
+    <div id="auth-overlay" hidden>
+      <div class="auth-card">
+        <h1>我的收藏馆</h1>
+        <p>请登录以查看你的私人藏品。</p>
+        <button class="auth-btn primary" data-login>登录 / 注册</button>
+      </div>
+    </div>
+    <div id="auth-bar"></div>
+    <dialog id="auth-dialog">
+      <form id="auth-form" data-mode="login" novalidate>
+        <div class="dialog-head"><div><p class="eyebrow">ACCOUNT</p><h2 id="auth-title">登录</h2></div><button type="button" class="close" data-auth-close>×</button></div>
+        <label>邮箱<input name="authEmail" type="email" required placeholder="you@example.com"></label>
+        <label>密码<input name="authPassword" type="password" required minlength="6" placeholder="至少 6 位"></label>
+        <p id="auth-msg" class="auth-msg"></p>
+        <div class="dialog-actions">
+          <button type="button" class="secondary" id="auth-toggle">没有账户？注册</button>
+          <button class="primary" type="submit">登录</button>
+        </div>
+      </form>
+    </dialog>`);
+  document.getElementById('auth-bar').addEventListener('click',async e=>{
+    if(e.target.closest('[data-login]'))openAuthDialog('login');
+    if(e.target.closest('[data-logout]')){await logout();}
+  });
+  document.getElementById('auth-overlay').addEventListener('click',e=>{
+    if(e.target.closest('[data-login]'))openAuthDialog('login');
+  });
+  document.getElementById('auth-dialog').addEventListener('click',e=>{
+    if(e.target.closest('[data-auth-close]'))document.getElementById('auth-dialog').close();
+  });
+  document.getElementById('auth-toggle').addEventListener('click',()=>{
+    openAuthDialog(document.getElementById('auth-form').dataset.mode!=='signup'?'signup':'login');
+  });
+  document.getElementById('auth-form').addEventListener('submit',handleAuth);
+}
+async function initAuth(){
+  const {data}=await supabase.auth.getSession();
+  currentUser=data.session?.user||null;
+  renderAuthBar();
+  if(currentUser){hideAuthWall();try{await supabase.rpc('claim_orphans');}catch(e){}}
+  else showAuthWall();
+  supabase.auth.onAuthStateChange((event,session)=>{
+    currentUser=session?.user||null;
+    renderAuthBar();
+    if(currentUser){
+      hideAuthWall();
+      (async()=>{try{await supabase.rpc('claim_orphans');}catch(e){}
+        const {entries:e,trash:t}=await loadData();entries=e;trash=t;renderCurrent();})();
+    }else{showAuthWall();entries=[];trash=[];renderCurrent();}
+  });
+}
+
 // ===== 数据持久化：从 Supabase 读取 / 写入 / 删除 =====
 async function loadData(){
   try{
-    const {data,error}=await supabase.from('entries').select('*').order('created_at',{ascending:true});
+    const {data,error}=await supabase.from('entries').select('*').eq('user_id',currentUser?currentUser.id:null).order('created_at',{ascending:true});
     if(error)throw error;
     const now=Date.now();
     const rows=(data||[]).map(r=>{
@@ -49,5 +161,5 @@ async function shrinkImage(file){const url=URL.createObjectURL(file),img=new Ima
 function openForm(category,entry=null){activeCategory=category;editingId=entry?.id||null;const c=current(),select=(name,label,items)=>`<label>${label}<select name="${name}"><option value="">请选择</option>${items.map(v=>`<option>${v}</option>`).join('')}</select></label>`;let fields=`<label class="wide cover-upload">封面图片 <span>支持 JPG、PNG、WebP；将自动压缩并以固定比例展示</span><input name="coverFile" type="file" accept="image/jpeg,image/png,image/webp"><input name="cover" type="hidden"><div class="cover-preview">${entry?.cover?`<img src="${entry.cover}" alt="当前封面">`:'上传后在此预览'}</div></label><label>名称 / 标题<input name="title" placeholder="${category==='books'?'例如：海边的卡夫卡':category==='music'?'例如：In Rainbows':'例如：花样年华'}" required></label><label>创作者<input name="creator" placeholder="${category==='books'?'作者':'导演、艺人'}"></label>${select('genre',category==='books'?'书籍类型':category==='music'?'音乐类型':'电影类型',c.genres)}`;if(category==='music')fields+=select('format','收藏介质',['CD','黑胶']);if(category==='movies')fields+=select('itemType','收藏品类型',['海报','明信片','票根','剧照','节目册','徽章','模型','其他']);fields+=`<label>年份<input name="year" type="number" min="1800" max="2100" placeholder="出版 / 发行 / 上映年份"></label><label>购入渠道<input name="source" placeholder="书店、唱片行、二手平台…"></label><label>保存状态<select name="condition"><option>全新</option><option>近全新</option><option>良好</option><option>有使用痕迹</option></select></label><label class="wide">备注<textarea name="note" rows="3" placeholder="版本、签名、购入日期，或你想记住的故事…"></textarea></label>`;document.querySelector('#form-title').textContent=`${entry?'编辑':'新增'}${c.label}收藏`;document.querySelector('#form-fields').innerHTML=fields;if(entry)Object.entries(entry).forEach(([key,value])=>{const input=document.querySelector(`[name="${key}"]`);if(input&&key!=='coverFile')input.value=value||''});const picker=document.querySelector('[name="coverFile"]');picker.addEventListener('click',()=>{choosingCover=true});picker.addEventListener('change',async event=>{choosingCover=false;const file=event.target.files[0];if(!file)return;const preview=document.querySelector('.cover-preview');preview.textContent='正在处理封面…';try{const cover=await shrinkImage(file);document.querySelector('[name="cover"]').value=cover;preview.innerHTML=`<img src="${cover}" alt="封面预览">`}catch{preview.textContent='图片处理失败，请选择其他图片。'}});document.querySelector('#entry-dialog').showModal()}
 const originalOpenForm=openForm;openForm=function(category,entry=null){originalOpenForm(category,entry);const preview=document.querySelector('.cover-preview'),hidden=document.querySelector('[name="cover"]'),picker=document.querySelector('[name="coverFile"]');preview.insertAdjacentHTML('afterend',`<button type="button" class="remove-cover" ${entry?.cover?'':'hidden'}>移除封面</button>`);const remove=document.querySelector('.remove-cover');picker.addEventListener('change',()=>{if(picker.files[0])remove.hidden=false});remove.addEventListener('click',()=>{hidden.value='';picker.value='';preview.textContent='上传后在此预览';remove.hidden=true})}
 function dirty(){return[...document.querySelector('#entry-form').elements].some(el=>el.name&&el.value&&!(el.name==='condition'&&el.value==='全新'))}function dismiss(){if(!dirty())return closeEntry(true);document.querySelector('#confirm-dialog').showModal()}function closeEntry(reset){document.querySelector('#confirm-dialog').close();document.querySelector('#entry-dialog').close();if(reset)document.querySelector('#entry-form').reset()}
-buildDialogs();document.querySelector('#entry-dialog').addEventListener('cancel',e=>{if(choosingCover){e.preventDefault();choosingCover=false;return}e.preventDefault();dismiss()});document.querySelectorAll('[data-add]').forEach(b=>b.addEventListener('click',()=>document.body.dataset.page==='category'?openForm(activeCategory):document.querySelector('#type-dialog').showModal()));document.addEventListener('click',async e=>{const pick=e.target.closest('[data-pick]');if(pick){document.querySelector('#type-dialog').close();openForm(pick.dataset.pick)}if(e.target.closest('[data-close-type]'))document.querySelector('#type-dialog').close();if(e.target.closest('[data-dismiss]'))dismiss();if(e.target.closest('[data-discard]'))closeEntry(true);if(e.target.closest('[data-keep]'))document.querySelector('#confirm-dialog').close();const edit=e.target.closest('[data-edit-entry]');if(edit){const entry=entries.find(item=>item.id===edit.dataset.editEntry);if(entry)openForm(entry.category,entry)}const move=e.target.closest('[data-delete-entry]');if(move){pendingDelete={id:move.dataset.deleteEntry,permanent:false};document.querySelector('#delete-title').textContent='移入回收站？';document.querySelector('#delete-message').textContent='此收藏会在回收站保留 30 天，期间可随时恢复。';document.querySelector('[data-confirm-delete]').textContent='确认移入';document.querySelector('#delete-dialog').showModal()}const permanent=e.target.closest('[data-permanent]');if(permanent){pendingDelete={id:permanent.dataset.permanent,permanent:true};document.querySelector('#delete-title').textContent='永久删除这件藏品？';document.querySelector('#delete-message').textContent='永久删除后将无法恢复。';document.querySelector('[data-confirm-delete]').textContent='永久删除';document.querySelector('#delete-dialog').showModal()}const restore=e.target.closest('[data-restore]');if(restore){const item=trash.find(entry=>entry.id===restore.dataset.restore);if(item){trash=trash.filter(entry=>entry.id!==item.id);delete item.deletedAt;entries.unshift(item);await persist();renderTrash()}}if(e.target.closest('[data-close-delete]'))document.querySelector('#delete-dialog').close();if(e.target.closest('[data-confirm-delete]')&&pendingDelete){if(pendingDelete.permanent){await deleteRow(pendingDelete.id);trash=trash.filter(item=>item.id!==pendingDelete.id);document.querySelector('#delete-dialog').close();renderTrash()}else{const item=entries.find(entry=>entry.id===pendingDelete.id);if(item){const returnCategory=item.category;entries=entries.filter(entry=>entry.id!==item.id);trash.unshift({...item,deletedAt:Date.now()});await persist();document.querySelector('#delete-dialog').close();location.href=`category.html?type=${returnCategory}`}}}});document.querySelector('#entry-form').addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget;if(!f.reportValidity())return;const rawForm={...Object.fromEntries(new FormData(f))};delete rawForm.coverFile;const item={...rawForm,category:activeCategory,id:editingId||`entry-${Date.now()}-${Math.random().toString(36).slice(2,8)}`};if(editingId)entries=entries.map(entry=>entry.id===editingId?item:entry);else entries.unshift(item);const saveErr=await persist();if(saveErr){alert('保存失败：'+saveErr.message+'。\n请确认已在 Supabase 的 SQL Editor 里运行过 supabase-setup.sql 建好 entries 表。');return;}closeEntry(true);if(editingId){editingId=null;renderDetail()}else if(document.body.dataset.page==='category')renderCategory();else renderHome()});document.addEventListener('change',event=>{const check=event.target.closest('[data-trash-check]');if(check){check.checked?selectedTrash.add(check.dataset.trashCheck):selectedTrash.delete(check.dataset.trashCheck);renderTrash()}const all=event.target.closest('[data-select-all]');if(all){selectedTrash=all.checked?new Set(trash.map(entry=>entry.id)):new Set();renderTrash()}});document.addEventListener('click',async event=>{const batch=event.target.closest('[data-permanent-selected]');if(batch&&selectedTrash.size){if(confirm(`确定永久删除选中的 ${selectedTrash.size} 件收藏吗？此操作无法恢复。`)){await Promise.all([...selectedTrash].map(deleteRow));trash=trash.filter(entry=>!selectedTrash.has(entry.id));selectedTrash=new Set();renderTrash()}}});
-(async()=>{const {entries:e,trash:t}=await loadData();entries=e;trash=t;const page=document.body.dataset.page;if(page==='home')renderHome();else if(page==='category')renderCategory();else if(page==='trash')renderTrash();else renderDetail();})();
+buildDialogs();buildAuthUI();document.querySelector('#entry-dialog').addEventListener('cancel',e=>{if(choosingCover){e.preventDefault();choosingCover=false;return}e.preventDefault();dismiss()});document.querySelectorAll('[data-add]').forEach(b=>b.addEventListener('click',()=>document.body.dataset.page==='category'?openForm(activeCategory):document.querySelector('#type-dialog').showModal()));document.addEventListener('click',async e=>{const pick=e.target.closest('[data-pick]');if(pick){document.querySelector('#type-dialog').close();openForm(pick.dataset.pick)}if(e.target.closest('[data-close-type]'))document.querySelector('#type-dialog').close();if(e.target.closest('[data-dismiss]'))dismiss();if(e.target.closest('[data-discard]'))closeEntry(true);if(e.target.closest('[data-keep]'))document.querySelector('#confirm-dialog').close();const edit=e.target.closest('[data-edit-entry]');if(edit){const entry=entries.find(item=>item.id===edit.dataset.editEntry);if(entry)openForm(entry.category,entry)}const move=e.target.closest('[data-delete-entry]');if(move){pendingDelete={id:move.dataset.deleteEntry,permanent:false};document.querySelector('#delete-title').textContent='移入回收站？';document.querySelector('#delete-message').textContent='此收藏会在回收站保留 30 天，期间可随时恢复。';document.querySelector('[data-confirm-delete]').textContent='确认移入';document.querySelector('#delete-dialog').showModal()}const permanent=e.target.closest('[data-permanent]');if(permanent){pendingDelete={id:permanent.dataset.permanent,permanent:true};document.querySelector('#delete-title').textContent='永久删除这件藏品？';document.querySelector('#delete-message').textContent='永久删除后将无法恢复。';document.querySelector('[data-confirm-delete]').textContent='永久删除';document.querySelector('#delete-dialog').showModal()}const restore=e.target.closest('[data-restore]');if(restore){const item=trash.find(entry=>entry.id===restore.dataset.restore);if(item){trash=trash.filter(entry=>entry.id!==item.id);delete item.deletedAt;entries.unshift(item);await persist();renderTrash()}}if(e.target.closest('[data-close-delete]'))document.querySelector('#delete-dialog').close();if(e.target.closest('[data-confirm-delete]')&&pendingDelete){if(pendingDelete.permanent){await deleteRow(pendingDelete.id);trash=trash.filter(item=>item.id!==pendingDelete.id);document.querySelector('#delete-dialog').close();renderTrash()}else{const item=entries.find(entry=>entry.id===pendingDelete.id);if(item){const returnCategory=item.category;entries=entries.filter(entry=>entry.id!==item.id);trash.unshift({...item,deletedAt:Date.now()});await persist();document.querySelector('#delete-dialog').close();location.href=`category.html?type=${returnCategory}`}}}});document.querySelector('#entry-form').addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget;if(!f.reportValidity())return;const rawForm={...Object.fromEntries(new FormData(f))};delete rawForm.coverFile;const item={...rawForm,category:activeCategory,id:editingId||`entry-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,user_id:currentUser?currentUser.id:null};if(editingId)entries=entries.map(entry=>entry.id===editingId?item:entry);else entries.unshift(item);const saveErr=await persist();if(saveErr){alert('保存失败：'+saveErr.message+'。\n请确认已在 Supabase 的 SQL Editor 里运行过 supabase-setup.sql 建好 entries 表。');return;}closeEntry(true);if(editingId){editingId=null;renderDetail()}else if(document.body.dataset.page==='category')renderCategory();else renderHome()});document.addEventListener('change',event=>{const check=event.target.closest('[data-trash-check]');if(check){check.checked?selectedTrash.add(check.dataset.trashCheck):selectedTrash.delete(check.dataset.trashCheck);renderTrash()}const all=event.target.closest('[data-select-all]');if(all){selectedTrash=all.checked?new Set(trash.map(entry=>entry.id)):new Set();renderTrash()}});document.addEventListener('click',async event=>{const batch=event.target.closest('[data-permanent-selected]');if(batch&&selectedTrash.size){if(confirm(`确定永久删除选中的 ${selectedTrash.size} 件收藏吗？此操作无法恢复。`)){await Promise.all([...selectedTrash].map(deleteRow));trash=trash.filter(entry=>!selectedTrash.has(entry.id));selectedTrash=new Set();renderTrash()}}});
+(async()=>{await initAuth();const {entries:e,trash:t}=await loadData();entries=e;trash=t;renderCurrent();})();

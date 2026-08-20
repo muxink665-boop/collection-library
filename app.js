@@ -257,15 +257,19 @@ async function deleteCategory(id) {
     return { ok: true };
   } catch (err) { console.error('删除品类失败：', err); return { error: err }; }
 }
-function addCategoryField(init) {
+function addCategoryField(init, fixed) {
   const list = document.querySelector('#category-field-list');
   const safe = v => esc(String(v == null ? '' : v));
-  const label = safe(init && init.label);
+  const label = fixed ? '收藏介质' : safe(init && init.label);
   const isSelect = init && init.type === 'select';
   const typeOpts = `<option value="text"${!isSelect ? ' selected' : ''}>文本</option><option value="select"${isSelect ? ' selected' : ''}>下拉选项</option>`;
   const options = safe(init && Array.isArray(init.options) ? init.options.join('，') : '');
   const keyAttr = init && init.key ? ` data-key="${safe(init.key)}"` : '';
-  list.insertAdjacentHTML('beforeend', `<div class="category-field-row"${keyAttr}><input name="fieldLabel" placeholder="字段名称，如：型号" required value="${label}"><select name="fieldType">${typeOpts}</select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" value="${options}"><button type="button" class="secondary" data-remove-field>删除</button></div>`);
+  const labelInput = fixed
+    ? `<input name="fieldLabel" value="收藏介质" readonly class="field-fixed" title="第一个字段固定为收藏介质">`
+    : `<input name="fieldLabel" placeholder="字段名称，如：型号" required value="${label}">`;
+  const removeBtn = fixed ? '' : '<button type="button" class="secondary" data-remove-field>删除</button>';
+  list.insertAdjacentHTML('beforeend', `<div class="category-field-row${fixed ? ' field-row-fixed' : ''}"${keyAttr}>${labelInput}<select name="fieldType">${typeOpts}</select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" value="${options}">${removeBtn}</div>`);
 }
 function openEditCategory(id) {
   if (!isCustomCategory(id)) return;
@@ -280,8 +284,11 @@ function openEditCategory(id) {
   f.querySelector('[name="catDescription"]').value = c.description || '';
   const list = document.querySelector('#category-field-list');
   list.innerHTML = '';
-  if (c.fields && c.fields.length) c.fields.forEach(fd => addCategoryField(fd));
-  else addCategoryField();
+  const fields = c.fields && c.fields.length ? [...c.fields] : [];
+  const hasFormat = fields[0]?.key === 'format';
+  if (!hasFormat) fields.unshift({ key: 'format', label: '收藏介质', type: 'text' });
+  fields.forEach((fd, idx) => addCategoryField(fd, idx === 0));
+  if (!fields.length) { addCategoryField({ key: 'format', label: '收藏介质', type: 'text' }, true); addCategoryField(); }
   dlg.showModal();
 }
 
@@ -339,8 +346,6 @@ function renderCategory() {
   document.title = `藏 · ${c.label}收藏`;
   document.querySelector('#category-title').textContent = c.label;
   document.querySelector('#category-description').textContent = c.description;
-  const hint = isCustomCategory(activeCategory) ? (c.fields.map(f => f.label).join('、') || '暂无预设字段') : c.fields;
-  document.querySelector('#field-hint').innerHTML = '<b>建议记录：</b>' + esc(hint);
   document.querySelector('#list-title').textContent = `我的${c.label}`;
   document.querySelector('#collection-grid').innerHTML = entries.filter(e => e.category === activeCategory).map(card).join('') || '<p class="empty">还没有记录。点击右上角“新增藏品”开始归档。</p>';
   const editBtn = document.getElementById('edit-category-btn');
@@ -388,7 +393,7 @@ function buildDialogs() {
   document.body.insertAdjacentHTML('beforeend', `<dialog id="type-dialog"><div class="dialog-head"><div><p class="eyebrow">NEW ENTRY</p><h2>选择收藏类别</h2></div><button class="close" data-close-type>×</button></div><div class="type-options"></div></dialog><dialog id="entry-dialog"><form id="entry-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW ENTRY</p><h2 id="form-title">新增藏品</h2></div><button type="button" class="close" data-dismiss>×</button></div><div class="form-grid" id="form-fields"></div><div class="dialog-actions"><button type="button" class="secondary" data-dismiss>取消</button><button class="primary" type="submit">保存记录</button></div></form></dialog><dialog id="confirm-dialog"><div class="confirm"><p class="eyebrow">UNSAVED CHANGES</p><h2>要保留填写内容吗？</h2><p>你已经填写了部分内容。保留后可继续编辑；不保留则会清空本次填写。</p><div class="dialog-actions"><button class="secondary" data-discard>不保留</button><button class="primary" data-keep>继续填写</button></div></div></dialog><dialog id="delete-dialog"><div class="confirm"><p class="eyebrow">MOVE TO RECYCLE BIN</p><h2 id="delete-title">移入回收站？</h2><p id="delete-message">此收藏会在回收站保留 30 天，期间可随时恢复。</p><div class="dialog-actions"><button class="secondary" data-close-delete>取消</button><button class="danger" data-confirm-delete>确认移入</button></div></div></dialog>`);
 }
 function buildCategoryDialog() {
-  document.body.insertAdjacentHTML('beforeend', `<dialog id="category-dialog"><form id="category-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW CATEGORY</p><h2>新建收藏品类</h2></div><button type="button" class="close" data-close-category>×</button></div><div class="form-grid"><label>品类名称<input name="catLabel" required placeholder="例如：黑胶、球鞋、手办"></label><label>图标（单字或 emoji）<input name="catIcon" maxlength="4" placeholder="例如：💿"></label><label class="wide">描述<textarea name="catDescription" rows="2" placeholder="一句话说明这个品类记录什么"></textarea></label><div class="wide category-fields"><p class="fields-heading">字段定义 <span>第一个字段会作为藏品名称</span></p><div id="category-field-list"></div><button type="button" class="secondary" data-add-field>＋ 添加字段</button></div></div><div class="dialog-actions"><button type="button" class="secondary" data-close-category>取消</button><button class="primary" type="submit">保存品类</button></div></form></dialog>`);
+  document.body.insertAdjacentHTML('beforeend', `<dialog id="category-dialog"><form id="category-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW CATEGORY</p><h2>新建收藏品类</h2></div><button type="button" class="close" data-close-category>×</button></div><div class="form-grid"><label>品类名称<input name="catLabel" required placeholder="例如：黑胶、球鞋、手办"></label><label>图标（单字或 emoji）<input name="catIcon" maxlength="4" placeholder="例如：💿"></label><label class="wide">描述<textarea name="catDescription" rows="2" placeholder="一句话说明这个品类记录什么"></textarea></label><div class="wide category-fields"><p class="fields-heading">字段定义 <span>第一个字段固定为「收藏介质」，第二个字段作为藏品名称</span></p><div id="category-field-list"></div><button type="button" class="secondary" data-add-field>＋ 添加字段</button></div></div><div class="dialog-actions"><button type="button" class="secondary" data-close-category>取消</button><button class="primary" type="submit">保存品类</button></div></form></dialog>`);
 }
 async function shrinkImage(file) {
   const url = URL.createObjectURL(file), img = new Image();
@@ -449,6 +454,10 @@ function openForm(category, entry = null) {
         if (input) input.value = value || '';
       });
     }
+    if (entry.format) {
+      const formatInput = document.querySelector('[name="metadata__format"]');
+      if (formatInput && !formatInput.value) formatInput.value = entry.format;
+    }
   }
   const picker = document.querySelector('[name="coverFile"]');
   picker.addEventListener('click', () => { choosingCover = true; });
@@ -508,6 +517,7 @@ document.addEventListener('click', async e => {
     dlg.querySelector('.dialog-head h2').textContent = '新建收藏品类';
     const list = document.querySelector('#category-field-list');
     list.innerHTML = '';
+    addCategoryField({ key: 'format', label: '收藏介质', type: 'text' }, true);
     addCategoryField();
     dlg.showModal();
   }
@@ -527,15 +537,17 @@ document.querySelector('#entry-form').addEventListener('submit', async e => {
   Object.keys(rawForm).forEach(key => {
     if (key.startsWith('metadata__')) { metadata[key.slice('metadata__'.length)] = rawForm[key]; delete rawForm[key]; }
   });
-  let title = rawForm.title || '', creator = rawForm.creator || '';
-  if (isCustomCategory(activeCategory) && Object.keys(metadata).length) {
+  let title = rawForm.title || '', creator = rawForm.creator || '', format = rawForm.format || '';
+  if (isCustomCategory(activeCategory)) {
     const def = current();
-    const firstKey = def.fields[0]?.key;
-    if (firstKey) title = metadata[firstKey] || '';
-    const secondKey = def.fields[1]?.key;
-    if (secondKey) creator = metadata[secondKey] || '';
+    const formatKey = def.fields[0]?.key;
+    if (formatKey) { format = metadata[formatKey] || ''; delete metadata[formatKey]; }
+    const titleKey = def.fields[1]?.key;
+    if (titleKey) title = metadata[titleKey] || '';
+    const creatorKey = def.fields[2]?.key;
+    if (creatorKey) creator = metadata[creatorKey] || '';
   }
-  const item = { ...rawForm, title, creator, metadata, category: activeCategory, id: editingId || `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, user_id: currentUser ? currentUser.id : null };
+  const item = { ...rawForm, title, creator, format, metadata, category: activeCategory, id: editingId || `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, user_id: currentUser ? currentUser.id : null };
   if (editingId) entries = entries.map(entry => entry.id === editingId ? item : entry);
   else entries.unshift(item);
   const saveErr = await persist();
@@ -550,14 +562,15 @@ document.querySelector('#category-form').addEventListener('submit', async e => {
   const f = e.currentTarget;
   if (!f.reportValidity()) return;
   const formData = new FormData(f);
-  const fields = [];
-  document.querySelectorAll('#category-field-list .category-field-row').forEach((row, i) => {
+  const rows = [...document.querySelectorAll('#category-field-list .category-field-row')];
+  if (rows.length === 0) { alert('请至少添加一个字段'); return; }
+  const fields = rows.map((row, i) => {
     const label = row.querySelector('[name="fieldLabel"]').value.trim();
     const type = row.querySelector('[name="fieldType"]').value;
     const options = row.querySelector('[name="fieldOptions"]').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-    if (label) fields.push({ key: row.dataset.key || `field-${i}`, label, type, options });
+    const key = i === 0 ? 'format' : (row.dataset.key || `field-${i}`);
+    return { key, label: i === 0 ? '收藏介质' : label, type, options };
   });
-  if (fields.length === 0) { alert('请至少添加一个字段'); return; }
   const id = f.dataset.editId || `custom-${Date.now()}`;
   const def = { id, label: formData.get('catLabel').trim(), icon: (formData.get('catIcon') || '').trim() || '藏', className: 'custom', description: (formData.get('catDescription') || '').trim(), fields };
   const { error } = await saveCategory(def);

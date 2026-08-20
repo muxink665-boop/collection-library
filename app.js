@@ -83,6 +83,12 @@ function renderAuthBar() {
     bar.innerHTML = '<button class="auth-btn primary" data-login>登录 / 注册</button>';
   }
 }
+function renderTopNav() {
+  const menu = document.getElementById('top-nav-menu'); if (!menu) return;
+  const cats = allCategories();
+  const currentType = new URLSearchParams(location.search).get('type');
+  menu.innerHTML = Object.entries(cats).map(([id, c]) => `<a class="${id === currentType ? 'active' : ''}" href="category.html?type=${id}">${esc(c.label)}</a>`).join('');
+}
 function openAuthDialog(mode) {
   const f = document.getElementById('auth-form');
   f.dataset.mode = mode;
@@ -200,7 +206,7 @@ async function initAuth() {
     renderAuthBar();
     if (currentUser) {
       hideAuthWall();
-      (async () => { try { await supabase.rpc('claim_orphans'); } catch (e) { } await loadCategories(); renderTypeOptions(); const { entries: e, trash: t, migrated } = await loadData(); entries = e; trash = t; if (migrated) await persist(); renderCurrent(); })();
+      (async () => { try { await supabase.rpc('claim_orphans'); } catch (e) { } await loadCategories(); renderTopNav(); renderTypeOptions(); const { entries: e, trash: t, migrated } = await loadData(); entries = e; trash = t; if (migrated) await persist(); renderCurrent(); })();
     } else { showAuthWall(); entries = []; trash = []; renderCurrent(); }
     document.documentElement.classList.remove('auth-loading');
   });
@@ -222,6 +228,7 @@ async function saveCategory(def) {
   const { data, error } = await supabase.from('custom_categories').upsert(row, { onConflict: 'id' }).select().single();
   if (error) return { error };
   customCategoryDefs[data.id] = normalizeCategory(data);
+  renderTopNav();
   return { data };
 }
 function addCategoryField() {
@@ -286,10 +293,7 @@ function renderCategory() {
   document.querySelector('#field-hint').innerHTML = '<b>建议记录：</b>' + esc(hint);
   document.querySelector('#list-title').textContent = `我的${c.label}`;
   document.querySelector('#collection-grid').innerHTML = entries.filter(e => e.category === activeCategory).map(card).join('') || '<p class="empty">还没有记录。点击右上角“新增藏品”开始归档。</p>';
-  document.querySelectorAll('.topbar nav a').forEach(a => {
-    const t = new URL(a.href, location.href).searchParams.get('type');
-    a.classList.toggle('active', t === activeCategory);
-  });
+  renderTopNav();
 }
 function renderDetail() {
   const entry = entries.find(e => e.id === new URLSearchParams(location.search).get('id'));
@@ -508,6 +512,14 @@ document.addEventListener('change', event => {
   if (all) { selectedTrash = all.checked ? new Set(trash.map(entry => entry.id)) : new Set(); renderTrash(); }
 });
 document.addEventListener('click', async event => {
+  const toggle = event.target.closest('[data-nav-toggle]');
+  if (toggle) {
+    toggle.closest('.nav-dropdown').classList.toggle('open');
+    return;
+  }
+  if (!event.target.closest('.nav-dropdown')) {
+    document.querySelectorAll('.nav-dropdown.open').forEach(d => d.classList.remove('open'));
+  }
   const batch = event.target.closest('[data-permanent-selected]');
   if (batch && selectedTrash.size) {
     if (confirm(`确定永久删除选中的 ${selectedTrash.size} 件收藏吗？此操作无法恢复。`)) {
@@ -518,4 +530,4 @@ document.addEventListener('click', async event => {
     }
   }
 });
-(async () => { await initAuth(); await loadCategories(); renderTypeOptions(); const { entries: e, trash: t, migrated } = await loadData(); entries = e; trash = t; if (migrated) await persist(); renderCurrent(); })();
+(async () => { await initAuth(); await loadCategories(); renderTopNav(); renderTypeOptions(); const { entries: e, trash: t, migrated } = await loadData(); entries = e; trash = t; if (migrated) await persist(); renderCurrent(); })();

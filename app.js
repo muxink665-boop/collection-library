@@ -43,6 +43,7 @@ function normalizeCategory(row) {
     className: row.className || 'custom',
     description: row.description || '',
     fields: Array.isArray(row.fields) ? row.fields : [],
+    starField: row.starField || '',
     genres: Array.isArray(row.genres) ? row.genres : []
   };
 }
@@ -257,28 +258,79 @@ async function deleteCategory(id) {
     return { ok: true };
   } catch (err) { console.error('删除品类失败：', err); return { error: err }; }
 }
-function addCategoryField(init, fixed) {
+function addCategoryField(init = {}) {
   const list = document.querySelector('#category-field-list');
   const safe = v => esc(String(v == null ? '' : v));
-  const label = fixed ? '收藏介质' : safe(init && init.label);
-  const isSelect = init && init.type === 'select';
+  const label = safe(init.label);
+  const isSelect = init.type === 'select';
   const typeOpts = `<option value="text"${!isSelect ? ' selected' : ''}>文本</option><option value="select"${isSelect ? ' selected' : ''}>下拉选项</option>`;
-  const options = safe(init && Array.isArray(init.options) ? init.options.join('，') : '');
-  const keyAttr = init && init.key ? ` data-key="${safe(init.key)}"` : '';
-  const labelInput = fixed
-    ? `<input name="fieldLabel" value="收藏介质" readonly class="field-fixed" title="第一个字段固定为收藏介质">`
-    : `<input name="fieldLabel" placeholder="字段名称，如：型号" required value="${label}">`;
-  const removeBtn = fixed
-    ? '<button type="button" class="secondary" data-remove-field disabled>删除</button>'
-    : '<button type="button" class="secondary" data-remove-field>删除</button>';
+  const options = safe(Array.isArray(init.options) ? init.options.join('，') : '');
+  const key = init.key || `field-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const starActive = init.star ? ' active' : '';
   const optionsDisabled = !isSelect ? ' disabled' : '';
-  list.insertAdjacentHTML('beforeend', `<div class="category-field-row${fixed ? ' field-row-fixed' : ''}"${keyAttr}>${labelInput}<select name="fieldType">${typeOpts}</select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" value="${options}"${optionsDisabled}>${removeBtn}</div>`);
+  list.insertAdjacentHTML('beforeend', `<div class="category-field-row" draggable="true" data-key="${safe(key)}">
+    <button type="button" class="field-star${starActive}" data-star-field title="设为展示重点" aria-label="设为展示重点">☆</button>
+    <span class="drag-handle" title="拖动排序">⋮⋮</span>
+    <input name="fieldLabel" placeholder="字段名称，如：型号" required value="${label}">
+    <select name="fieldType">${typeOpts}</select>
+    <input name="fieldOptions" placeholder="下拉选项，用逗号分隔" value="${options}"${optionsDisabled}>
+    <button type="button" class="secondary" data-remove-field>删除</button>
+  </div>`);
   const row = list.lastElementChild;
   const typeSelect = row.querySelector('[name="fieldType"]');
   typeSelect.addEventListener('change', () => {
     const optInput = row.querySelector('[name="fieldOptions"]');
     optInput.disabled = typeSelect.value !== 'select';
     if (typeSelect.value !== 'select') optInput.value = '';
+  });
+  initCategoryFieldDrag(row);
+  updateFieldStarStates();
+}
+
+function initCategoryFieldDrag(row) {
+  row.addEventListener('dragstart', e => {
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', row.dataset.key);
+  });
+  row.addEventListener('dragend', () => {
+    row.classList.remove('dragging');
+    document.querySelectorAll('#category-field-list .category-field-row').forEach(r => r.classList.remove('drag-over'));
+  });
+  row.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const list = document.querySelector('#category-field-list');
+    const dragging = list.querySelector('.dragging');
+    if (!dragging || dragging === row) return;
+    const rect = row.getBoundingClientRect();
+    const offset = e.clientY - rect.top;
+    row.classList.toggle('drag-over-top', offset < rect.height / 2);
+    row.classList.toggle('drag-over-bottom', offset >= rect.height / 2);
+  });
+  row.addEventListener('dragleave', () => {
+    row.classList.remove('drag-over-top', 'drag-over-bottom');
+  });
+  row.addEventListener('drop', e => {
+    e.preventDefault();
+    const list = document.querySelector('#category-field-list');
+    const dragging = list.querySelector('.dragging');
+    if (!dragging || dragging === row) return;
+    const rect = row.getBoundingClientRect();
+    const offset = e.clientY - rect.top;
+    if (offset < rect.height / 2) list.insertBefore(dragging, row);
+    else list.insertBefore(dragging, row.nextElementSibling);
+    row.classList.remove('drag-over-top', 'drag-over-bottom');
+  });
+}
+
+function updateFieldStarStates() {
+  const list = document.querySelector('#category-field-list');
+  if (!list) return;
+  const hasActive = !!list.querySelector('.field-star.active');
+  list.querySelectorAll('.field-star').forEach(btn => {
+    btn.textContent = btn.classList.contains('active') ? '★' : '☆';
+    btn.classList.toggle('dimmed', hasActive && !btn.classList.contains('active'));
   });
 }
 function openEditCategory(id) {
@@ -295,10 +347,9 @@ function openEditCategory(id) {
   const list = document.querySelector('#category-field-list');
   list.innerHTML = '';
   const fields = c.fields && c.fields.length ? [...c.fields] : [];
-  const hasFormat = fields[0]?.key === 'format';
-  if (!hasFormat) fields.unshift({ key: 'format', label: '收藏介质', type: 'text' });
-  fields.forEach((fd, idx) => addCategoryField(fd, idx === 0));
-  if (!fields.length) { addCategoryField({ key: 'format', label: '收藏介质', type: 'text' }, true); addCategoryField(); }
+  const starField = c.starField || '';
+  fields.forEach(fd => addCategoryField({ ...fd, star: fd.key === starField }));
+  if (!fields.length) addCategoryField();
   dlg.showModal();
 }
 
@@ -367,10 +418,13 @@ function renderDetail() {
   if (!entry) { document.querySelector('main').innerHTML = '<section class="detail-empty"><h1>没有找到这件藏品</h1><a class="text-link" href="index.html">返回首页</a></section>'; return; }
   const c = getCategory(entry.category);
   if (!c) { document.querySelector('main').innerHTML = '<section class="detail-empty"><h1>没有找到这件藏品</h1><a class="text-link" href="index.html">返回首页</a></section>'; return; }
-  let meta;
+  let meta, starred;
   if (isCustomCategory(entry.category)) {
     const def = c;
-    meta = (def.fields || []).slice(1).map(f => [f.label, (entry.metadata || {})[f.key]]).filter(([, v]) => v);
+    const starKey = def.starField;
+    const starField = (def.fields || []).find(f => f.key === starKey);
+    starred = starField ? [starField.label, (entry.metadata || {})[starKey]] : null;
+    meta = (def.fields || []).filter(f => f.key !== starKey).map(f => [f.label, (entry.metadata || {})[f.key]]).filter(([, v]) => v);
   } else {
     meta = [['年份', entry.year], ['类型', entry.genre], ['购入渠道', entry.source], ['保存状态', entry.condition]].filter(([, v]) => v);
   }
@@ -378,7 +432,10 @@ function renderDetail() {
   document.title = `藏 · ${entry.title}`;
   const detailBack = document.querySelector('#detail-back');
   if (detailBack) { detailBack.href = `category.html?type=${entry.category}`; detailBack.textContent = `← 返回${c.label}收藏`; }
-  document.querySelector('#detail-content').innerHTML = `<section class="detail-hero"><div class="detail-visual ${c.className}${entry.cover ? ' has-cover' : ''}">${visual}</div><div><p class="eyebrow">${c.label.toUpperCase()} COLLECTION</p><h1>${esc(entry.title)}</h1><p class="detail-creator">${esc(entry.creator || '创作者未记录')}</p>${entry.format ? `<p class="detail-format">${esc(entry.format)}</p>` : ''}<div class="detail-actions"><button class="secondary" data-edit-entry="${entry.id}">编辑资料</button><button class="danger" data-delete-entry="${entry.id}">移入回收站</button></div></div></section><section class="detail-section-heading"><p class="eyebrow">COLLECTION DETAILS</p><h2>藏品信息</h2></section><section class="detail-bento"><div class="bento-card bento-feature"><div class="bento-head"><span class="bento-tag">${esc(c.label)}</span><span class="bento-head-label">名称</span></div><span class="bento-value">${esc(entry.title)}</span><span class="bento-sub">${esc(entry.creator || '创作者未记录')}</span></div><div class="bento-card bento-category"><span class="bento-label">收藏介质</span><span class="bento-value">${esc(entry.format || '—')}</span></div>${meta.map(([k, v]) => `<div class="bento-card bento-meta"><span class="bento-label">${k}</span><span class="bento-value">${esc(v)}</span></div>`).join('')}<div class="bento-card bento-note"><span class="bento-label">PERSONAL NOTE / 收藏笔记</span><p>${esc(entry.note || '尚未记录备注。')}</p></div></section>`;
+  const categoryCard = isCustomCategory(entry.category) && starred
+    ? `<div class="bento-card bento-category"><span class="bento-label">${esc(starred[0])}</span><span class="bento-value">${esc(starred[1] || '—')}</span></div>`
+    : `<div class="bento-card bento-category"><span class="bento-label">收藏介质</span><span class="bento-value">${esc(entry.format || '—')}</span></div>`;
+  document.querySelector('#detail-content').innerHTML = `<section class="detail-hero"><div class="detail-visual ${c.className}${entry.cover ? ' has-cover' : ''}">${visual}</div><div><p class="eyebrow">${c.label.toUpperCase()} COLLECTION</p><h1>${esc(entry.title)}</h1><p class="detail-creator">${esc(entry.creator || '创作者未记录')}</p>${entry.format ? `<p class="detail-format">${esc(entry.format)}</p>` : ''}<div class="detail-actions"><button class="secondary" data-edit-entry="${entry.id}">编辑资料</button><button class="danger" data-delete-entry="${entry.id}">移入回收站</button></div></div></section><section class="detail-section-heading"><p class="eyebrow">COLLECTION DETAILS</p><h2>藏品信息</h2></section><section class="detail-bento"><div class="bento-card bento-feature"><div class="bento-head"><span class="bento-tag">${esc(c.label)}</span><span class="bento-head-label">名称</span></div><span class="bento-value">${esc(entry.title)}</span><span class="bento-sub">${esc(entry.creator || '创作者未记录')}</span></div>${categoryCard}${meta.map(([k, v]) => `<div class="bento-card bento-meta"><span class="bento-label">${k}</span><span class="bento-value">${esc(v)}</span></div>`).join('')}<div class="bento-card bento-note"><span class="bento-label">PERSONAL NOTE / 收藏笔记</span><p>${esc(entry.note || '尚未记录备注。')}</p></div></section>`;
 }
 function renderTrash() {
   const grid = document.querySelector('#trash-grid');
@@ -403,7 +460,7 @@ function buildDialogs() {
   document.body.insertAdjacentHTML('beforeend', `<dialog id="type-dialog"><div class="dialog-head"><div><p class="eyebrow">NEW ENTRY</p><h2>选择收藏类别</h2></div><button class="close" data-close-type>×</button></div><div class="type-options"></div></dialog><dialog id="entry-dialog"><form id="entry-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW ENTRY</p><h2 id="form-title">新增藏品</h2></div><button type="button" class="close" data-dismiss>×</button></div><div class="form-grid" id="form-fields"></div><div class="dialog-actions"><button type="button" class="secondary" data-dismiss>取消</button><button class="primary" type="submit">保存记录</button></div></form></dialog><dialog id="confirm-dialog"><div class="confirm"><p class="eyebrow">UNSAVED CHANGES</p><h2>要保留填写内容吗？</h2><p>你已经填写了部分内容。保留后可继续编辑；不保留则会清空本次填写。</p><div class="dialog-actions"><button class="secondary" data-discard>不保留</button><button class="primary" data-keep>继续填写</button></div></div></dialog><dialog id="delete-dialog"><div class="confirm"><p class="eyebrow">MOVE TO RECYCLE BIN</p><h2 id="delete-title">移入回收站？</h2><p id="delete-message">此收藏会在回收站保留 30 天，期间可随时恢复。</p><div class="dialog-actions"><button class="secondary" data-close-delete>取消</button><button class="danger" data-confirm-delete>确认移入</button></div></div></dialog>`);
 }
 function buildCategoryDialog() {
-  document.body.insertAdjacentHTML('beforeend', `<dialog id="category-dialog"><form id="category-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW CATEGORY</p><h2>新建收藏品类</h2></div><button type="button" class="close" data-close-category>×</button></div><div class="form-grid"><label>品类名称<input name="catLabel" required placeholder="例如：黑胶、球鞋、手办"></label><label>图标（单字或 emoji）<input name="catIcon" maxlength="4" placeholder="例如：💿"></label><label class="wide">描述<textarea name="catDescription" rows="2" placeholder="一句话说明这个品类记录什么"></textarea></label><div class="wide category-fields"><p class="fields-heading">字段定义 <span>第一个字段固定为「收藏介质」，第二个字段作为藏品名称</span></p><div id="category-field-list"></div><button type="button" class="secondary" data-add-field>＋ 添加字段</button></div></div><div class="dialog-actions"><button type="button" class="secondary" data-close-category>取消</button><button class="primary" type="submit">保存品类</button></div></form></dialog>`);
+  document.body.insertAdjacentHTML('beforeend', `<dialog id="category-dialog"><form id="category-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW CATEGORY</p><h2>新建收藏品类</h2></div><button type="button" class="close" data-close-category>×</button></div><div class="form-grid"><label>品类名称<input name="catLabel" required placeholder="例如：黑胶、球鞋、手办"></label><label>图标（单字或 emoji）<input name="catIcon" maxlength="4" placeholder="例如：💿"></label><label class="wide">描述<textarea name="catDescription" rows="2" placeholder="一句话说明这个品类记录什么"></textarea></label><div class="wide category-fields"><p class="fields-heading">字段定义</p><div id="category-field-list"></div><button type="button" class="secondary" data-add-field>＋ 添加字段</button></div></div><div class="dialog-actions"><button type="button" class="secondary" data-close-category>取消</button><button class="primary" type="submit">保存品类</button></div></form></dialog>`);
 }
 async function shrinkImage(file) {
   const url = URL.createObjectURL(file), img = new Image();
@@ -464,10 +521,6 @@ function openForm(category, entry = null) {
         if (input) input.value = value || '';
       });
     }
-    if (entry.format) {
-      const formatInput = document.querySelector('[name="metadata__format"]');
-      if (formatInput && !formatInput.value) formatInput.value = entry.format;
-    }
   }
   const picker = document.querySelector('[name="coverFile"]');
   picker.addEventListener('click', () => { choosingCover = true; });
@@ -527,14 +580,22 @@ document.addEventListener('click', async e => {
     dlg.querySelector('.dialog-head h2').textContent = '新建收藏品类';
     const list = document.querySelector('#category-field-list');
     list.innerHTML = '';
-    addCategoryField({ key: 'format', label: '收藏介质', type: 'text' }, true);
     addCategoryField();
     dlg.showModal();
   }
   if (e.target.closest('[data-edit-category]')) { openEditCategory(activeCategory); }
   if (e.target.closest('[data-add-field]')) addCategoryField();
+  const starBtn = e.target.closest('[data-star-field]');
+  if (starBtn) {
+    const list = document.querySelector('#category-field-list');
+    const isActive = starBtn.classList.contains('active');
+    list.querySelectorAll('[data-star-field]').forEach(btn => btn.classList.remove('active'));
+    if (!isActive) starBtn.classList.add('active');
+    updateFieldStarStates();
+    e.stopPropagation();
+  }
   const removeField = e.target.closest('[data-remove-field]');
-  if (removeField) removeField.closest('.category-field-row').remove();
+  if (removeField) { removeField.closest('.category-field-row').remove(); updateFieldStarStates(); }
   if (e.target.closest('[data-close-category]')) document.querySelector('#category-dialog').close();
 });
 document.querySelector('#entry-form').addEventListener('submit', async e => {
@@ -550,12 +611,12 @@ document.querySelector('#entry-form').addEventListener('submit', async e => {
   let title = rawForm.title || '', creator = rawForm.creator || '', format = rawForm.format || '';
   if (isCustomCategory(activeCategory)) {
     const def = current();
-    const formatKey = def.fields[0]?.key;
-    if (formatKey) { format = metadata[formatKey] || ''; delete metadata[formatKey]; }
-    const titleKey = def.fields[1]?.key;
+    const titleKey = def.fields[0]?.key;
     if (titleKey) title = metadata[titleKey] || '';
-    const creatorKey = def.fields[2]?.key;
+    const creatorKey = def.fields[1]?.key;
     if (creatorKey) creator = metadata[creatorKey] || '';
+    const starKey = def.starField;
+    if (starKey) format = metadata[starKey] || '';
   }
   const item = { ...rawForm, title, creator, format, metadata, category: activeCategory, id: editingId || `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, user_id: currentUser ? currentUser.id : null };
   if (editingId) entries = entries.map(entry => entry.id === editingId ? item : entry);
@@ -578,11 +639,13 @@ document.querySelector('#category-form').addEventListener('submit', async e => {
     const label = row.querySelector('[name="fieldLabel"]').value.trim();
     const type = row.querySelector('[name="fieldType"]').value;
     const options = row.querySelector('[name="fieldOptions"]').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-    const key = i === 0 ? 'format' : (row.dataset.key || `field-${i}`);
-    return { key, label: i === 0 ? '收藏介质' : label, type, options };
+    const key = row.dataset.key || `field-${i}`;
+    return { key, label, type, options };
   });
+  const starRow = rows.find(row => row.querySelector('[data-star-field]').classList.contains('active'));
+  const starField = starRow ? starRow.dataset.key : '';
   const id = f.dataset.editId || `custom-${Date.now()}`;
-  const def = { id, label: formData.get('catLabel').trim(), icon: (formData.get('catIcon') || '').trim() || '藏', className: 'custom', description: (formData.get('catDescription') || '').trim(), fields };
+  const def = { id, label: formData.get('catLabel').trim(), icon: (formData.get('catIcon') || '').trim() || '藏', className: 'custom', description: (formData.get('catDescription') || '').trim(), fields, starField };
   const { error } = await saveCategory(def);
   if (error) { alert('保存品类失败：' + error.message); return; }
   document.querySelector('#category-dialog').close();

@@ -334,14 +334,19 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   background: var(--ink);
   color: #f5f3ee;
 }
-.bento-feature .bento-tag {
+.bento-feature .bento-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.bento-feature .bento-tag,
+.bento-feature .bento-head-label {
   color: rgba(245,243,238,.55);
   font-size: 12px;
   letter-spacing: 1.5px;
   font-weight: 500;
-  margin-bottom: 6px;
 }
-.bento-feature .bento-label { color: rgba(245,243,238,.55); }
 .bento-feature .bento-value {
   color: #f5f3ee;
   font-size: clamp(34px, 4vw, 46px);

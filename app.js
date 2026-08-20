@@ -258,6 +258,16 @@ async function deleteCategory(id) {
     return { ok: true };
   } catch (err) { console.error('删除品类失败：', err); return { error: err }; }
 }
+function renderCategoryFixedFields() {
+  const top = document.querySelector('#category-field-fixed-top');
+  const bottom = document.querySelector('#category-field-fixed-bottom');
+  if (top) top.innerHTML = `
+    <div class="category-field-row field-row-fixed" data-key="title"><span class="field-tag">名称</span><input name="fieldLabel" value="名称" readonly class="field-fixed"><select name="fieldType" disabled><option>文本</option></select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" disabled></div>
+    <div class="category-field-row field-row-fixed" data-key="creator"><span class="field-tag">作者</span><input name="fieldLabel" value="作者" readonly class="field-fixed"><select name="fieldType" disabled><option>文本</option></select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" disabled></div>`;
+  if (bottom) bottom.innerHTML = `
+    <div class="category-field-row field-row-fixed" data-key="note"><span class="field-tag">收藏笔记</span><input name="fieldLabel" value="收藏笔记" readonly class="field-fixed"><select name="fieldType" disabled><option>文本</option></select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" disabled></div>`;
+}
+
 function addCategoryField(init = {}) {
   const list = document.querySelector('#category-field-list');
   const safe = v => esc(String(v == null ? '' : v));
@@ -344,12 +354,13 @@ function openEditCategory(id) {
   f.querySelector('[name="catLabel"]').value = c.label || '';
   f.querySelector('[name="catIcon"]').value = c.icon || '';
   f.querySelector('[name="catDescription"]').value = c.description || '';
+  renderCategoryFixedFields();
   const list = document.querySelector('#category-field-list');
   list.innerHTML = '';
-  const fields = c.fields && c.fields.length ? [...c.fields] : [];
   const starField = c.starField || '';
-  fields.forEach(fd => addCategoryField({ ...fd, star: fd.key === starField }));
-  if (!fields.length) addCategoryField();
+  const userFields = (c.fields || []).filter(fd => !fd.fixed && !['title', 'creator', 'note'].includes(fd.key));
+  userFields.forEach(fd => addCategoryField({ ...fd, star: fd.key === starField }));
+  if (!userFields.length) addCategoryField();
   dlg.showModal();
 }
 
@@ -422,9 +433,12 @@ function renderDetail() {
   if (isCustomCategory(entry.category)) {
     const def = c;
     const starKey = def.starField;
-    const starField = (def.fields || []).find(f => f.key === starKey);
+    const starField = (def.fields || []).find(f => f.key === starKey && !f.fixed);
     starred = starField ? [starField.label, (entry.metadata || {})[starKey]] : null;
-    meta = (def.fields || []).filter(f => f.key !== starKey).map(f => [f.label, (entry.metadata || {})[f.key]]).filter(([, v]) => v);
+    meta = (def.fields || [])
+      .filter(f => !f.fixed && f.key !== starKey)
+      .map(f => [f.label, (entry.metadata || {})[f.key]])
+      .filter(([, v]) => v);
   } else {
     meta = [['年份', entry.year], ['类型', entry.genre], ['购入渠道', entry.source], ['保存状态', entry.condition]].filter(([, v]) => v);
   }
@@ -460,7 +474,7 @@ function buildDialogs() {
   document.body.insertAdjacentHTML('beforeend', `<dialog id="type-dialog"><div class="dialog-head"><div><p class="eyebrow">NEW ENTRY</p><h2>选择收藏类别</h2></div><button class="close" data-close-type>×</button></div><div class="type-options"></div></dialog><dialog id="entry-dialog"><form id="entry-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW ENTRY</p><h2 id="form-title">新增藏品</h2></div><button type="button" class="close" data-dismiss>×</button></div><div class="form-grid" id="form-fields"></div><div class="dialog-actions"><button type="button" class="secondary" data-dismiss>取消</button><button class="primary" type="submit">保存记录</button></div></form></dialog><dialog id="confirm-dialog"><div class="confirm"><p class="eyebrow">UNSAVED CHANGES</p><h2>要保留填写内容吗？</h2><p>你已经填写了部分内容。保留后可继续编辑；不保留则会清空本次填写。</p><div class="dialog-actions"><button class="secondary" data-discard>不保留</button><button class="primary" data-keep>继续填写</button></div></div></dialog><dialog id="delete-dialog"><div class="confirm"><p class="eyebrow">MOVE TO RECYCLE BIN</p><h2 id="delete-title">移入回收站？</h2><p id="delete-message">此收藏会在回收站保留 30 天，期间可随时恢复。</p><div class="dialog-actions"><button class="secondary" data-close-delete>取消</button><button class="danger" data-confirm-delete>确认移入</button></div></div></dialog>`);
 }
 function buildCategoryDialog() {
-  document.body.insertAdjacentHTML('beforeend', `<dialog id="category-dialog"><form id="category-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW CATEGORY</p><h2>新建收藏品类</h2></div><button type="button" class="close" data-close-category>×</button></div><div class="form-grid"><label>品类名称<input name="catLabel" required placeholder="例如：黑胶、球鞋、手办"></label><label>图标（单字或 emoji）<input name="catIcon" maxlength="4" placeholder="例如：💿"></label><label class="wide">描述<textarea name="catDescription" rows="2" placeholder="一句话说明这个品类记录什么"></textarea></label><div class="wide category-fields"><p class="fields-heading">字段定义</p><div id="category-field-list"></div><button type="button" class="secondary" data-add-field>＋ 添加字段</button></div></div><div class="dialog-actions"><button type="button" class="secondary" data-close-category>取消</button><button class="primary" type="submit">保存品类</button></div></form></dialog>`);
+  document.body.insertAdjacentHTML('beforeend', `<dialog id="category-dialog"><form id="category-form" novalidate><div class="dialog-head"><div><p class="eyebrow">NEW CATEGORY</p><h2>新建收藏品类</h2></div><button type="button" class="close" data-close-category>×</button></div><div class="form-grid"><label>品类名称<input name="catLabel" required placeholder="例如：黑胶、球鞋、手办"></label><label>图标（单字或 emoji）<input name="catIcon" maxlength="4" placeholder="例如：💿"></label><label class="wide">描述<textarea name="catDescription" rows="2" placeholder="一句话说明这个品类记录什么"></textarea></label><div class="wide category-fields"><p class="fields-heading">字段定义</p><div id="category-field-fixed-top"></div><div id="category-field-list" class="category-field-list"></div><div id="category-field-fixed-bottom"></div><button type="button" class="secondary" data-add-field>＋ 添加字段</button></div></div><div class="dialog-actions"><button type="button" class="secondary" data-close-category>取消</button><button class="primary" type="submit">保存品类</button></div></form></dialog>`);
 }
 async function shrinkImage(file) {
   const url = URL.createObjectURL(file), img = new Image();
@@ -488,12 +502,14 @@ function openForm(category, entry = null) {
   let fields = `<label class="wide cover-upload">封面图片 <span>支持 JPG、PNG、WebP；将自动压缩并以固定比例展示</span><input name="coverFile" type="file" accept="image/jpeg,image/png,image/webp"><input name="cover" type="hidden"><div class="cover-preview">${entry?.cover ? `<img src="${entry.cover}" alt="当前封面">` : '上传后在此预览'}</div></label>`;
   if (isCustomCategory(category)) {
     const def = c;
-    (def.fields || []).forEach((f, idx) => {
+    (def.fields || []).forEach(f => {
       const name = `metadata__${f.key}`;
-      if (f.type === 'select') {
+      if (f.key === 'note') {
+        fields += `<label class="wide">${f.label}<textarea name="${name}" rows="3" placeholder="请输入${f.label}"></textarea></label>`;
+      } else if (f.type === 'select') {
         fields += select(name, f.label, f.options || []);
       } else {
-        fields += `<label>${f.label}<input name="${name}" placeholder="请输入${f.label}" ${idx === 0 ? 'required' : ''}></label>`;
+        fields += `<label>${f.label}<input name="${name}" placeholder="请输入${f.label}" ${f.key === 'title' ? 'required' : ''}></label>`;
       }
     });
   } else {
@@ -520,6 +536,14 @@ function openForm(category, entry = null) {
         const input = document.querySelector(`[name="metadata__${key}"]`);
         if (input) input.value = value || '';
       });
+    }
+    if (isCustomCategory(category)) {
+      const titleInput = document.querySelector('[name="metadata__title"]');
+      if (titleInput && entry.title) titleInput.value = entry.title;
+      const creatorInput = document.querySelector('[name="metadata__creator"]');
+      if (creatorInput && entry.creator) creatorInput.value = entry.creator;
+      const noteInput = document.querySelector('[name="metadata__note"]');
+      if (noteInput && entry.note) noteInput.value = entry.note;
     }
   }
   const picker = document.querySelector('[name="coverFile"]');
@@ -578,6 +602,7 @@ document.addEventListener('click', async e => {
     f.dataset.editId = '';
     dlg.querySelector('.eyebrow').textContent = 'NEW CATEGORY';
     dlg.querySelector('.dialog-head h2').textContent = '新建收藏品类';
+    renderCategoryFixedFields();
     const list = document.querySelector('#category-field-list');
     list.innerHTML = '';
     addCategoryField();
@@ -608,17 +633,19 @@ document.querySelector('#entry-form').addEventListener('submit', async e => {
   Object.keys(rawForm).forEach(key => {
     if (key.startsWith('metadata__')) { metadata[key.slice('metadata__'.length)] = rawForm[key]; delete rawForm[key]; }
   });
-  let title = rawForm.title || '', creator = rawForm.creator || '', format = rawForm.format || '';
+  let title = rawForm.title || '', creator = rawForm.creator || '', format = rawForm.format || '', note = rawForm.note || '';
   if (isCustomCategory(activeCategory)) {
     const def = current();
-    const titleKey = def.fields[0]?.key;
-    if (titleKey) title = metadata[titleKey] || '';
-    const creatorKey = def.fields[1]?.key;
-    if (creatorKey) creator = metadata[creatorKey] || '';
+    title = metadata.title || '';
+    creator = metadata.creator || '';
+    note = metadata.note || '';
+    delete metadata.title;
+    delete metadata.creator;
+    delete metadata.note;
     const starKey = def.starField;
     if (starKey) format = metadata[starKey] || '';
   }
-  const item = { ...rawForm, title, creator, format, metadata, category: activeCategory, id: editingId || `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, user_id: currentUser ? currentUser.id : null };
+  const item = { ...rawForm, title, creator, format, note, metadata, category: activeCategory, id: editingId || `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, user_id: currentUser ? currentUser.id : null };
   if (editingId) entries = entries.map(entry => entry.id === editingId ? item : entry);
   else entries.unshift(item);
   const saveErr = await persist();
@@ -633,17 +660,23 @@ document.querySelector('#category-form').addEventListener('submit', async e => {
   const f = e.currentTarget;
   if (!f.reportValidity()) return;
   const formData = new FormData(f);
-  const rows = [...document.querySelectorAll('#category-field-list .category-field-row')];
-  if (rows.length === 0) { alert('请至少添加一个字段'); return; }
-  const fields = rows.map((row, i) => {
+  const userRows = [...document.querySelectorAll('#category-field-list .category-field-row')];
+  if (userRows.length === 0) { alert('请至少添加一个字段'); return; }
+  const userFields = userRows.map((row, i) => {
     const label = row.querySelector('[name="fieldLabel"]').value.trim();
     const type = row.querySelector('[name="fieldType"]').value;
     const options = row.querySelector('[name="fieldOptions"]').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
     const key = row.dataset.key || `field-${i}`;
     return { key, label, type, options };
   });
-  const starRow = rows.find(row => row.querySelector('[data-star-field]').classList.contains('active'));
+  const starRow = userRows.find(row => row.querySelector('[data-star-field]').classList.contains('active'));
   const starField = starRow ? starRow.dataset.key : '';
+  const fields = [
+    { key: 'title', label: '名称', type: 'text', fixed: true },
+    { key: 'creator', label: '作者', type: 'text', fixed: true },
+    ...userFields,
+    { key: 'note', label: '收藏笔记', type: 'text', fixed: true }
+  ];
   const id = f.dataset.editId || `custom-${Date.now()}`;
   const def = { id, label: formData.get('catLabel').trim(), icon: (formData.get('catIcon') || '').trim() || '藏', className: 'custom', description: (formData.get('catDescription') || '').trim(), fields, starField };
   const { error } = await saveCategory(def);

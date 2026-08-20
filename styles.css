@@ -451,7 +451,7 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
 }
 .category-field-row {
   display: grid;
-  grid-template-columns: auto auto 1.4fr 110px 1fr auto;
+  grid-template-columns: 28px 28px 1.4fr 110px 1fr 28px;
   gap: 8px;
   align-items: end;
   margin-bottom: 10px;
@@ -464,6 +464,15 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
 .category-field-row button {
   padding: 9px 12px;
   font-size: 11px;
+}
+.category-field-row button[data-remove-field] {
+  width: 28px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
 }
 .field-star,
 .drag-handle,
@@ -478,6 +487,7 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
 }
 .field-star {
   border: 0;
+  padding: 0;
   background: transparent;
   color: #bbb;
   cursor: pointer;

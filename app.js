@@ -289,7 +289,7 @@ function addCategoryField(init = {}) {
     <input name="fieldLabel" placeholder="字段名称，如：型号" required value="${label}">
     <select name="fieldType">${typeOpts}</select>
     <input name="fieldOptions" placeholder="下拉选项，用逗号分隔" value="${options}"${optionsDisabled}>
-    <button type="button" class="secondary" data-remove-field>删除</button>
+    <button type="button" class="secondary" data-remove-field title="删除此字段">×</button>
   </div>`);
   const row = list.lastElementChild;
   const typeSelect = row.querySelector('[name="fieldType"]');

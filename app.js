@@ -261,11 +261,16 @@ async function deleteCategory(id) {
 function renderCategoryFixedFields() {
   const top = document.querySelector('#category-field-fixed-top');
   const bottom = document.querySelector('#category-field-fixed-bottom');
-  if (top) top.innerHTML = `
-    <div class="category-field-row field-row-fixed" data-key="title"><span class="field-tag">名称</span><input name="fieldLabel" value="名称" readonly class="field-fixed"><select name="fieldType" disabled><option>文本</option></select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" disabled></div>
-    <div class="category-field-row field-row-fixed" data-key="creator"><span class="field-tag">作者</span><input name="fieldLabel" value="作者" readonly class="field-fixed"><select name="fieldType" disabled><option>文本</option></select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" disabled></div>`;
-  if (bottom) bottom.innerHTML = `
-    <div class="category-field-row field-row-fixed" data-key="note"><span class="field-tag">收藏笔记</span><input name="fieldLabel" value="收藏笔记" readonly class="field-fixed"><select name="fieldType" disabled><option>文本</option></select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" disabled></div>`;
+  const fixedRow = (key, label) => `<div class="category-field-row field-row-fixed" data-key="${key}">
+    <span class="field-star-placeholder" aria-hidden="true"></span>
+    <span class="drag-handle-placeholder" aria-hidden="true"></span>
+    <input name="fieldLabel" value="${label}" readonly class="field-fixed" title="固定字段：${label}">
+    <select name="fieldType" disabled title="固定为文本"><option>文本</option></select>
+    <input name="fieldOptions" placeholder="下拉选项，用逗号分隔" disabled>
+    <span class="remove-placeholder" aria-hidden="true"></span>
+  </div>`;
+  if (top) top.innerHTML = fixedRow('title', '名称') + fixedRow('creator', '作者') + fixedRow('year', '年份');
+  if (bottom) bottom.innerHTML = fixedRow('note', '收藏笔记');
 }
 
 function addCategoryField(init = {}) {
@@ -542,6 +547,8 @@ function openForm(category, entry = null) {
       if (titleInput && entry.title) titleInput.value = entry.title;
       const creatorInput = document.querySelector('[name="metadata__creator"]');
       if (creatorInput && entry.creator) creatorInput.value = entry.creator;
+      const yearInput = document.querySelector('[name="metadata__year"]');
+      if (yearInput && entry.year) yearInput.value = entry.year;
       const noteInput = document.querySelector('[name="metadata__note"]');
       if (noteInput && entry.note) noteInput.value = entry.note;
     }
@@ -633,19 +640,21 @@ document.querySelector('#entry-form').addEventListener('submit', async e => {
   Object.keys(rawForm).forEach(key => {
     if (key.startsWith('metadata__')) { metadata[key.slice('metadata__'.length)] = rawForm[key]; delete rawForm[key]; }
   });
-  let title = rawForm.title || '', creator = rawForm.creator || '', format = rawForm.format || '', note = rawForm.note || '';
+  let title = rawForm.title || '', creator = rawForm.creator || '', year = rawForm.year || '', format = rawForm.format || '', note = rawForm.note || '';
   if (isCustomCategory(activeCategory)) {
     const def = current();
     title = metadata.title || '';
     creator = metadata.creator || '';
+    year = metadata.year || '';
     note = metadata.note || '';
     delete metadata.title;
     delete metadata.creator;
+    delete metadata.year;
     delete metadata.note;
     const starKey = def.starField;
     if (starKey) format = metadata[starKey] || '';
   }
-  const item = { ...rawForm, title, creator, format, note, metadata, category: activeCategory, id: editingId || `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, user_id: currentUser ? currentUser.id : null };
+  const item = { ...rawForm, title, creator, year, format, note, metadata, category: activeCategory, id: editingId || `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, user_id: currentUser ? currentUser.id : null };
   if (editingId) entries = entries.map(entry => entry.id === editingId ? item : entry);
   else entries.unshift(item);
   const saveErr = await persist();
@@ -674,6 +683,7 @@ document.querySelector('#category-form').addEventListener('submit', async e => {
   const fields = [
     { key: 'title', label: '名称', type: 'text', fixed: true },
     { key: 'creator', label: '作者', type: 'text', fixed: true },
+    { key: 'year', label: '年份', type: 'text', fixed: true },
     ...userFields,
     { key: 'note', label: '收藏笔记', type: 'text', fixed: true }
   ];

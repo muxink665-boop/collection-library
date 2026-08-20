@@ -500,21 +500,27 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
 }
 .field-row-fixed {
   cursor: default;
-  grid-template-columns: 28px 28px 1.4fr 110px 1fr auto;
 }
-.field-row-fixed .field-tag {
-  color: #777;
-  font-size: 12px;
-  font-weight: 600;
-  justify-self: start;
-  padding-left: 4px;
-  width: auto;
-  min-width: 28px;
+.field-star-placeholder,
+.drag-handle-placeholder,
+.remove-placeholder {
+  width: 28px;
+  height: 36px;
+  display: grid;
+  place-items: center;
 }
 .field-row-fixed .field-fixed {
-  background: #f5f5f5;
-  color: #777;
-  border-color: #ddd;
+  background: #f8f8f8;
+  color: #555;
+  border-color: #e0e0e0;
+  cursor: not-allowed;
+  font-weight: 500;
+}
+.field-row-fixed select:disabled,
+.field-row-fixed input[name="fieldOptions"]:disabled {
+  background: #f8f8f8;
+  color: #bbb;
+  border-color: #e0e0e0;
   cursor: not-allowed;
 }
 #category-field-fixed-bottom {

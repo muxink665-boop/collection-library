@@ -94,7 +94,7 @@ function renderTopNav() {
       <a href="category.html?type=${id}">${esc(c.label)}</a>
       ${removable ? `<button class="nav-delete" data-delete-category="${esc(id)}" title="删除品类">×</button>` : ''}
     </div>`;
-  }).join('');
+  }).join('') + '<div class="nav-dropdown-item nav-dropdown-new"><button class="nav-new" data-new-category>＋ 新建品类</button></div>';
 }
 function openAuthDialog(mode) {
   const f = document.getElementById('auth-form');

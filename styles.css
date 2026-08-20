@@ -251,7 +251,10 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.stats-scroll::-webkit-scrollbar { display: none; }
 .stats-scroll .summary-grid {
   display: flex;
   flex-wrap: nowrap;
@@ -538,9 +541,12 @@ body,body * { font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif !i
 .nav-dropdown-item:hover { background:#f5f5f5; }
 .nav-dropdown-item.active { background:var(--ink); }
 .nav-dropdown-item.active a { color:#fff; }
-.nav-delete { width:28px; height:28px; margin-right:8px; display:flex; align-items:center; justify-content:center; background:transparent; border:1px solid transparent; border-radius:4px; color:#999; font-size:18px; line-height:1; cursor:pointer; }
-.nav-dropdown-item:hover .nav-delete { color:#c44; }
+.nav-delete { width:28px; height:28px; margin-right:8px; display:flex; align-items:center; justify-content:center; background:transparent; border:1px solid transparent; border-radius:4px; color:#999; font-size:18px; line-height:1; cursor:pointer; opacity:0; transition:opacity .15s; }
+.nav-dropdown-item:hover .nav-delete { opacity:1; color:#c44; }
 .nav-delete:hover { background:#ffeaea; border-color:#e5b5b5; }
+.nav-dropdown-new { border-top:1px solid #eee; }
+.nav-dropdown-new:hover { background:#f5f5f5; }
+.nav-new { width:100%; padding:10px 16px; background:transparent; border:0; font-size:13px; color:var(--ink); cursor:pointer; text-align:left; font-family:inherit; }
 @media (max-width:720px) { .topbar nav { display:none; } }
 
 /* ===== 品类字段：星标、拖拽与禁用 ===== */

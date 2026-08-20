@@ -268,8 +268,18 @@ function addCategoryField(init, fixed) {
   const labelInput = fixed
     ? `<input name="fieldLabel" value="收藏介质" readonly class="field-fixed" title="第一个字段固定为收藏介质">`
     : `<input name="fieldLabel" placeholder="字段名称，如：型号" required value="${label}">`;
-  const removeBtn = fixed ? '' : '<button type="button" class="secondary" data-remove-field>删除</button>';
-  list.insertAdjacentHTML('beforeend', `<div class="category-field-row${fixed ? ' field-row-fixed' : ''}"${keyAttr}>${labelInput}<select name="fieldType">${typeOpts}</select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" value="${options}">${removeBtn}</div>`);
+  const removeBtn = fixed
+    ? '<button type="button" class="secondary" data-remove-field disabled>删除</button>'
+    : '<button type="button" class="secondary" data-remove-field>删除</button>';
+  const optionsDisabled = !isSelect ? ' disabled' : '';
+  list.insertAdjacentHTML('beforeend', `<div class="category-field-row${fixed ? ' field-row-fixed' : ''}"${keyAttr}>${labelInput}<select name="fieldType">${typeOpts}</select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" value="${options}"${optionsDisabled}>${removeBtn}</div>`);
+  const row = list.lastElementChild;
+  const typeSelect = row.querySelector('[name="fieldType"]');
+  typeSelect.addEventListener('change', () => {
+    const optInput = row.querySelector('[name="fieldOptions"]');
+    optInput.disabled = typeSelect.value !== 'select';
+    if (typeSelect.value !== 'select') optInput.value = '';
+  });
 }
 function openEditCategory(id) {
   if (!isCustomCategory(id)) return;

@@ -87,7 +87,13 @@ function renderTopNav() {
   const menu = document.getElementById('top-nav-menu'); if (!menu) return;
   const cats = allCategories();
   const currentType = new URLSearchParams(location.search).get('type');
-  menu.innerHTML = Object.entries(cats).map(([id, c]) => `<a class="${id === currentType ? 'active' : ''}" href="category.html?type=${id}">${esc(c.label)}</a>`).join('');
+  menu.innerHTML = Object.entries(cats).map(([id, c]) => {
+    const removable = isCustomCategory(id);
+    return `<div class="nav-dropdown-item ${id === currentType ? 'active' : ''}">
+      <a href="category.html?type=${id}">${esc(c.label)}</a>
+      ${removable ? `<button class="nav-delete" data-delete-category="${esc(id)}" title="删除品类">×</button>` : ''}
+    </div>`;
+  }).join('');
 }
 function openAuthDialog(mode) {
   const f = document.getElementById('auth-form');
@@ -134,7 +140,7 @@ function buildAuthUI() {
     <div id="auth-overlay" hidden>
       <div class="welcome-card">
         <div class="welcome-logo">藏 <span>ARCHIVE</span></div>
-        <h1 class="welcome-headline">把热爱，<em>一一归档。</em></h1>
+        <h1 class="welcome-headline">把热爱，一一归档。</h1>
         <p class="welcome-lead">为书籍、音乐与电影收藏而生。<br>记录版本、来源、心情，以及每件藏品背后的故事。</p>
         <div class="welcome-features">
           <div><strong>云端同步</strong><span>换设备也不丢</span></div>
@@ -231,6 +237,26 @@ async function saveCategory(def) {
   renderTopNav();
   return { data };
 }
+async function deleteCategory(id) {
+  if (!currentUser) return { error: new Error('请先登录') };
+  if (!isCustomCategory(id)) return { error: new Error('内置品类不能删除') };
+  if (!confirm(`确定删除品类“${customCategoryDefs[id].label}”吗？该品类下的所有藏品也会被永久删除，且无法恢复。`)) return { cancelled: true };
+  try {
+    const catEntries = entries.filter(e => e.category === id);
+    await Promise.all(catEntries.map(e => deleteRow(e.id)));
+    const { error } = await supabase.from('custom_categories').delete().eq('id', id).eq('user_id', currentUser.id);
+    if (error) throw error;
+    delete customCategoryDefs[id];
+    entries = entries.filter(e => e.category !== id);
+    renderTopNav();
+    if (document.body.dataset.page === 'category' && activeCategory === id) {
+      location.href = 'index.html';
+    } else {
+      renderCurrent();
+    }
+    return { ok: true };
+  } catch (err) { console.error('删除品类失败：', err); return { error: err }; }
+}
 function addCategoryField() {
   const list = document.querySelector('#category-field-list');
   const idx = list.children.length;
@@ -284,6 +310,8 @@ function renderHome() {
   renderTypeOptions();
 }
 function renderCategory() {
+  activeCategory = new URLSearchParams(location.search).get('type');
+  if (!getCategory(activeCategory)) activeCategory = null;
   const c = current();
   if (!c) { document.querySelector('main').innerHTML = '<section class="detail-empty"><h1>没有这个收藏品类</h1><a class="text-link" href="index.html">返回首页</a></section>'; return; }
   document.title = `藏 · ${c.label}收藏`;
@@ -515,6 +543,13 @@ document.addEventListener('click', async event => {
   const toggle = event.target.closest('[data-nav-toggle]');
   if (toggle) {
     toggle.closest('.nav-dropdown').classList.toggle('open');
+    return;
+  }
+  const delCat = event.target.closest('[data-delete-category]');
+  if (delCat) {
+    event.preventDefault();
+    event.stopPropagation();
+    await deleteCategory(delCat.dataset.deleteCategory);
     return;
   }
   if (!event.target.closest('.nav-dropdown')) {

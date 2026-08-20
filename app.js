@@ -257,10 +257,32 @@ async function deleteCategory(id) {
     return { ok: true };
   } catch (err) { console.error('删除品类失败：', err); return { error: err }; }
 }
-function addCategoryField() {
+function addCategoryField(init) {
   const list = document.querySelector('#category-field-list');
-  const idx = list.children.length;
-  list.insertAdjacentHTML('beforeend', `<div class="category-field-row"><input name="fieldLabel" placeholder="字段名称，如：型号" required><select name="fieldType"><option value="text">文本</option><option value="select">下拉选项</option></select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔"><button type="button" class="secondary" data-remove-field>删除</button></div>`);
+  const safe = v => esc(String(v == null ? '' : v));
+  const label = safe(init && init.label);
+  const isSelect = init && init.type === 'select';
+  const typeOpts = `<option value="text"${!isSelect ? ' selected' : ''}>文本</option><option value="select"${isSelect ? ' selected' : ''}>下拉选项</option>`;
+  const options = safe(init && Array.isArray(init.options) ? init.options.join('，') : '');
+  const keyAttr = init && init.key ? ` data-key="${safe(init.key)}"` : '';
+  list.insertAdjacentHTML('beforeend', `<div class="category-field-row"${keyAttr}><input name="fieldLabel" placeholder="字段名称，如：型号" required value="${label}"><select name="fieldType">${typeOpts}</select><input name="fieldOptions" placeholder="下拉选项，用逗号分隔" value="${options}"><button type="button" class="secondary" data-remove-field>删除</button></div>`);
+}
+function openEditCategory(id) {
+  if (!isCustomCategory(id)) return;
+  const c = customCategoryDefs[id];
+  const f = document.getElementById('category-form');
+  const dlg = document.querySelector('#category-dialog');
+  f.dataset.editId = id;
+  dlg.querySelector('.eyebrow').textContent = 'EDIT CATEGORY';
+  dlg.querySelector('.dialog-head h2').textContent = '编辑收藏品类';
+  f.querySelector('[name="catLabel"]').value = c.label || '';
+  f.querySelector('[name="catIcon"]').value = c.icon || '';
+  f.querySelector('[name="catDescription"]').value = c.description || '';
+  const list = document.querySelector('#category-field-list');
+  list.innerHTML = '';
+  if (c.fields && c.fields.length) c.fields.forEach(fd => addCategoryField(fd));
+  else addCategoryField();
+  dlg.showModal();
 }
 
 // ===== 数据持久化：从 Supabase 读取 / 写入 / 删除 =====
@@ -321,6 +343,8 @@ function renderCategory() {
   document.querySelector('#field-hint').innerHTML = '<b>建议记录：</b>' + esc(hint);
   document.querySelector('#list-title').textContent = `我的${c.label}`;
   document.querySelector('#collection-grid').innerHTML = entries.filter(e => e.category === activeCategory).map(card).join('') || '<p class="empty">还没有记录。点击右上角“新增藏品”开始归档。</p>';
+  const editBtn = document.getElementById('edit-category-btn');
+  if (editBtn) editBtn.hidden = !isCustomCategory(activeCategory);
   renderTopNav();
 }
 function renderDetail() {
@@ -476,7 +500,18 @@ document.addEventListener('click', async e => {
     if (pendingDelete.permanent) { await deleteRow(pendingDelete.id); trash = trash.filter(item => item.id !== pendingDelete.id); document.querySelector('#delete-dialog').close(); renderTrash(); }
     else { const item = entries.find(entry => entry.id === pendingDelete.id); if (item) { const returnCategory = item.category; entries = entries.filter(entry => entry.id !== item.id); trash.unshift({ ...item, deletedAt: Date.now() }); await persist(); document.querySelector('#delete-dialog').close(); location.href = `category.html?type=${returnCategory}`; } }
   }
-  if (e.target.closest('[data-new-category]')) { const list = document.querySelector('#category-field-list'); list.innerHTML = ''; addCategoryField(); document.querySelector('#category-dialog').showModal(); }
+  if (e.target.closest('[data-new-category]')) {
+    const f = document.getElementById('category-form');
+    const dlg = document.querySelector('#category-dialog');
+    f.dataset.editId = '';
+    dlg.querySelector('.eyebrow').textContent = 'NEW CATEGORY';
+    dlg.querySelector('.dialog-head h2').textContent = '新建收藏品类';
+    const list = document.querySelector('#category-field-list');
+    list.innerHTML = '';
+    addCategoryField();
+    dlg.showModal();
+  }
+  if (e.target.closest('[data-edit-category]')) { openEditCategory(activeCategory); }
   if (e.target.closest('[data-add-field]')) addCategoryField();
   const removeField = e.target.closest('[data-remove-field]');
   if (removeField) removeField.closest('.category-field-row').remove();
@@ -516,19 +551,20 @@ document.querySelector('#category-form').addEventListener('submit', async e => {
   if (!f.reportValidity()) return;
   const formData = new FormData(f);
   const fields = [];
-  document.querySelectorAll('#category-field-list .category-field-row').forEach(row => {
+  document.querySelectorAll('#category-field-list .category-field-row').forEach((row, i) => {
     const label = row.querySelector('[name="fieldLabel"]').value.trim();
     const type = row.querySelector('[name="fieldType"]').value;
     const options = row.querySelector('[name="fieldOptions"]').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-    if (label) fields.push({ key: `field-${fields.length}`, label, type, options });
+    if (label) fields.push({ key: row.dataset.key || `field-${i}`, label, type, options });
   });
   if (fields.length === 0) { alert('请至少添加一个字段'); return; }
-  const id = `custom-${Date.now()}`;
+  const id = f.dataset.editId || `custom-${Date.now()}`;
   const def = { id, label: formData.get('catLabel').trim(), icon: (formData.get('catIcon') || '').trim() || '藏', className: 'custom', description: (formData.get('catDescription') || '').trim(), fields };
   const { error } = await saveCategory(def);
   if (error) { alert('保存品类失败：' + error.message); return; }
   document.querySelector('#category-dialog').close();
   f.reset();
+  f.dataset.editId = '';
   document.querySelector('#category-field-list').innerHTML = '';
   renderTypeOptions();
   renderCurrent();

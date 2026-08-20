@@ -372,7 +372,7 @@ function openEditCategory(id) {
 // ===== 数据持久化：从 Supabase 读取 / 写入 / 删除 =====
 async function loadData() {
   try {
-    const { data, error } = await supabase.from('entries').select('*').eq('user_id', currentUser ? currentUser.id : null).order('created_at', { ascending: true });
+    const { data, error } = await supabase.from('entries').select('*').eq('user_id', currentUser ? currentUser.id : null).order('created_at', { ascending: false });
     if (error) throw error;
     const now = Date.now();
     const rows = (data || []).map(r => {
